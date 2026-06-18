@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url 同 directUrl 已經移走咗！
+}
+
+// ------------------------------------------------------
+// 1. Google Auth & User Management
+// ------------------------------------------------------
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  role            Role      @default(USER) 
+  storageUsed     BigInt    @default(0)
+
+  accounts        Account[]
+  sessions        Session[]
+  ownedSchedules  Schedule[] @relation("OwnedSchedules")
+  sharedSchedules Schedule[] @relation("SharedSchedules")
+  savedPlaces     Place[]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------
+// 2. Map Places & Dynamic Fields
+// ------------------------------------------------------
+model Category {
+  id          String            @id @default(cuid())
+  name        String            
+  fields      FieldDefinition[] 
+  places      Place[]
+}
+
+model FieldDefinition {
+  id          String    @id @default(cuid())
+  name        String    
+  type        FieldType 
+  options     Json?     
+  isGlobal    Boolean   @default(false) 
+  
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+}
+
+enum FieldType {
+  TEXT
+  DATE
+  TIME
+  PHOTOS
+  ATTACHMENT
+  CHECKBOX
+  COMBOBOX
+}
+
+model Place {
+  id            String   @id @default(cuid())
+  googlePlaceId String?  
+  name          String
+  lat           Float
+  lng           Float
+  address       String?
+  
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id])
+  dynamicData   Json?    
+
+  scheduleItems ScheduleItem[]
+  createdAt     DateTime @default(now())
+}
+
+// ------------------------------------------------------
+// 3. Scheduling & Sharing
+// ------------------------------------------------------
+model Schedule {
+  id          String         @id @default(cuid())
+  title       String         
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  ownerId     String
+  owner       User           @relation("OwnedSchedules", fields: [ownerId], references: [id])
+  sharedUsers User[]         @relation("SharedSchedules") 
+  items       ScheduleItem[]
+}
+
+model ScheduleItem {
+  id          String   @id @default(cuid())
+  scheduleId  String
+  schedule    Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  
+  placeId     String
+  place       Place    @relation(fields: [placeId], references: [id])
+  
+  visitDate   DateTime 
+  startTime   String?
+  endTime     String?
+  notes       String?
+}

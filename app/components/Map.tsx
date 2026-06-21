@@ -19,25 +19,71 @@ export default function Map() {
   const trip = useTripData();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(384);
+  
+  // 📐 尺寸狀態雙棲化：電腦睇 Width，手機睇 Height
+  const [sidebarWidth, setSidebarWidth] = useState(450); 
+  const [sidebarHeight, setSidebarHeight] = useState(350); // 🚀 手機版縱向預設高度 (約佔畫面 45%)
+
   const isResizing = useRef(false);
+  const isMobileResizing = useRef(false); // 🚀 追蹤手機端手指是否壓住拖動中
+
   const [isMounted, setIsMounted] = useState(false);
-
   const [showRouteMenu, setShowRouteMenu] = useState(false);
-
-  // 🚀 1. 新增心靈感應天線：記錄目前 Sidebar 到底睇緊「景點庫」定係「行程路線」
-  // 預設一入嚟當佢睇緊景點庫 ("places")
   const [sidebarTab, setSidebarTab] = useState<string>("places");
 
   useEffect(() => {
     setIsMounted(true); 
-    const handleMouseMove = (e: MouseEvent) => { if (!isResizing.current) return; if (e.clientX >= 280 && e.clientX <= 600) setSidebarWidth(e.clientX); };
-    const handleMouseUp = () => { isResizing.current = false; document.body.style.cursor = "default"; };
-    window.addEventListener("mousemove", handleMouseMove); window.addEventListener("mouseup", handleMouseUp);
-    return () => { window.removeEventListener("mousemove", handleMouseMove); window.removeEventListener("mouseup", handleMouseUp); };
+
+    // 🚀 全維度拖拽引擎：同時兼容 Desktop 滑鼠與 Mobile 手指
+    const handleMove = (clientY: number, clientX: number) => {
+      // 1. 電腦端橫向拉伸
+      if (isResizing.current) { 
+        if (clientX >= 280 && clientX <= 600) setSidebarWidth(clientX); 
+      }
+      // 2. 手機端縱向拉伸 (Bottom Sheet)
+      if (isMobileResizing.current) {
+        const windowH = window.innerHeight;
+        const newH = windowH - clientY; // 從底部計起嘅高度
+        // 安全範圍鎖定：最矮 80px，最高不超過螢幕總高的 85%
+        if (newH >= 80 && newH <= windowH * 0.85) {
+          setSidebarHeight(newH);
+        }
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientY, e.clientX);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) handleMove(e.touches[0].clientY, e.touches[0].clientX);
+    };
+
+    const handleUp = () => { 
+      isResizing.current = false; 
+      isMobileResizing.current = false;
+      document.body.style.cursor = "default"; 
+      document.body.style.userSelect = "auto";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove); 
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchend", handleUp);
+
+    return () => { 
+      window.removeEventListener("mousemove", handleMouseMove); 
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchend", handleUp);
+    };
   }, []);
 
   const startResize = (e: React.MouseEvent) => { e.preventDefault(); isResizing.current = true; document.body.style.cursor = "col-resize"; };
+  
+  // 🚀 手機端專用起動掣
+  const startMobileResize = () => {
+    isMobileResizing.current = true;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  };
 
   return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!} libraries={["places"]} language="zh-HK">
@@ -59,13 +105,60 @@ export default function Map() {
       ) : (
         <div className="relative w-full h-[calc(100vh-56px)] flex flex-col-reverse md:flex-row overflow-hidden bg-gray-100 dark:bg-gray-950 transition-colors">
           
-          <div style={{ width: isMounted && window.innerWidth >= 768 ? (isSidebarOpen ? `${sidebarWidth}px` : "0px") : undefined }} className={`relative z-20 flex flex-col transition-all md:transition-none duration-300 ease-in-out bg-white dark:bg-gray-900 shadow-xl border-r border-gray-200 dark:border-gray-800 ${isSidebarOpen ? "h-[50vh] md:h-full" : "h-12 md:h-full"} w-full md:w-auto`}>
+          {/* 🚀 容器動態樣式大解放：電腦食 Width，手機食 Height */}
+          <div 
+            style={{ 
+              width: isMounted && window.innerWidth >= 768 ? (isSidebarOpen ? `${sidebarWidth}px` : "0px") : "100%",
+              height: isMounted && window.innerWidth < 768 ? (isSidebarOpen ? `${sidebarHeight}px` : "48px") : "100%"
+            }} 
+            className="relative z-20 flex flex-col transition-all md:transition-none duration-300 ease-out bg-white dark:bg-gray-900 shadow-2xl border-t md:border-t-0 md:border-r border-gray-200 dark:border-gray-800 w-full md:w-auto"
+          >
+            {/* 電腦版側邊開關箭頭 */}
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex absolute top-1/2 -right-6 -translate-y-1/2 w-6 h-16 bg-white dark:bg-gray-800 border border-l-0 border-gray-200 dark:border-gray-700 rounded-r-md shadow-md items-center justify-center text-gray-500 dark:text-gray-400 z-30">
               {isSidebarOpen ? "◀" : "▶"}
             </button>
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="md:hidden w-full h-12 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold z-30 flex-shrink-0">
-              {isSidebarOpen ? "▼ 收起清單選項" : "▲ 展開清單選項"}
-            </button>
+
+            {/* ===================================================================== */}
+            {/* 📱 手機版現代感膠囊拖拽條 (Bottom Sheet Drag Handle)
+                按住可順滑上下推拉，雙擊可一鍵收起/展開 */}
+            {/* ===================================================================== */}
+{/* ===================================================================== */}
+            {/* 📱 手機版現代感膠囊拖拽條 + Windows 式「一橫 (-)」最小化按鈕 */}
+            {/* ===================================================================== */}
+            <div 
+              onTouchStart={startMobileResize}
+              onMouseDown={startMobileResize}
+              onDoubleClick={() => setIsSidebarOpen(!isSidebarOpen)} // 保留雙擊彩蛋給老手
+              className="md:hidden w-full h-12 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 cursor-row-resize z-30 flex-shrink-0 select-none relative group"
+            >
+              {/* 左側：顯示當前櫃桶仔屬性，令版面視覺平衡 */}
+              <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                {sidebarTab === "places" ? "📍 景點庫" : "📱 行程表"}
+              </span>
+
+              {/* 中間：絕對數學居中的 iOS / Android 級拖拉小橫線 */}
+              <div className="absolute left-1/2 -translate-x-1/2 w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full transition-colors group-hover:bg-gray-400" />
+
+              {/* 右側：Windows 式「一橫 (-)」最小化按鈕 / 展開按鈕 */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // 👈 絕殺關鍵：截斷觸控事件，避免撳 Button 誤觸發 startMobileResize 搞到畫面卡死
+                  setIsSidebarOpen(!isSidebarOpen);
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200/70 dark:bg-gray-800/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition active:scale-90 shadow-2xs"
+                title={isSidebarOpen ? "最小化面板" : "展開面板"}
+              >
+                {isSidebarOpen ? (
+                  // Windows Minimize Icon (乾淨的一橫)
+                  <span className="w-2.5 h-0.5 bg-current rounded-sm" />
+                ) : (
+                  // 縮起時，變成精緻的向上小箭頭
+                  <span className="text-[10px] font-black">▲</span>
+                )}
+              </button>
+            </div>
+
             {isSidebarOpen && <div onMouseDown={startResize} className="hidden md:block absolute top-0 right-0 bottom-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/50 bg-transparent transition z-40" />}
 
             <div className="flex-1 w-full h-full overflow-hidden relative">
@@ -86,8 +179,6 @@ export default function Map() {
                     onSwitchItinerary={trip.handleSwitchItinerary} 
                     hoveredPlaceId={trip.hoveredPlaceId}
                     setHoveredPlaceId={trip.setHoveredPlaceId}
-
-                    // 🚀 2. 將天線插落 Sidebar！
                     activeTab={sidebarTab}
                     onTabChange={setSidebarTab}
                   />
@@ -106,10 +197,10 @@ export default function Map() {
               onMarkerMouseEnter={(id) => trip.setHoveredPlaceId(id)}
               onMarkerMouseLeave={() => trip.setHoveredPlaceId(null)}
               dailyPaths={trip.visiblePaths} 
+              activePlaceId={trip.editingPlaceId || trip.sidebarSelectedPlace?.id}
             >
               <MapSearchBar onPlaceSelect={trip.handleMapClick} />
 
-              {/* 🚀 3. 終極邏輯審查：只要 Sidebar 唔係睇緊「景點庫」(places / placeLibrary)，先至准許選單落地生根！ */}
               {trip.dailyPaths.length > 0 && sidebarTab !== "places" && sidebarTab !== "placeLibrary" && (
                 <MapControl position={ControlPosition.TOP_LEFT}>
                   <div className="ml-3 mt-4 flex flex-col items-start">
@@ -197,8 +288,6 @@ export default function Map() {
                 onCancel={trip.handleCancel} 
                 isEditing={true} 
                 googleMapsUrl={trip.selectedLocation?.googleMapsUrl || ""} 
-
-                // 🚀 順手幫你補回頭先貼漏咗嘅顏色 Props！
                 placeColor={trip.placeColor}
                 setPlaceColor={trip.setPlaceColor}
               />

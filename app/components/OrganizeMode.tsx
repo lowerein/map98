@@ -289,6 +289,7 @@ export default function OrganizeMode({
           setSelectedPlace={setSelectedPlace}
           updateLocalStateFromCalendar={updateLocalStateFromCalendar}
           showList={showList}
+          setHoveredPlaceId={setHoveredPlaceId}
           hoveredPlaceId={hoveredPlaceId}
           onFlyToPlace={handleFlyToPlace}
           onEditPlace={onEditPlace} // 🚀 3. 傳波畀中間日曆！
@@ -364,12 +365,13 @@ export default function OrganizeMode({
             <MapCanvas
               savedPlaces={places}
               selectedLocation={panLocation}
-              onMapClick={() => {}}
+              onMapClick={() => setSelectedPlace(null)}
               onMarkerClick={(place) => setSelectedPlace(place)}
               hoveredPlaceId={hoveredPlaceId}
               onMarkerMouseEnter={(id) => setHoveredPlaceId(id)}
               onMarkerMouseLeave={() => setHoveredPlaceId(null)}
               dailyPaths={visiblePaths}
+              activePlaceId={selectedPlace?.id}
             />
           </div>
         </div>

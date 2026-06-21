@@ -41,7 +41,6 @@ export default function TravelMode({
   const dayColors = ["bg-blue-600", "bg-emerald-500", "bg-orange-500", "bg-purple-500", "bg-pink-500", "bg-cyan-500"];
   const ringColors = ["ring-blue-500", "ring-emerald-500", "ring-orange-500", "ring-purple-500", "ring-pink-500", "ring-cyan-500"];
 
-  // 🚀 幽靈導航觸發：唔去直接 scroll 那個 Day，而係去 scroll 埋喺佢頭頂上方的幽靈點
   const scrollToDay = (dayId: string) => {
     const phantomAnchor = document.getElementById(`travel-phantom-${dayId}`);
     if (phantomAnchor) {
@@ -82,9 +81,8 @@ export default function TravelMode({
           {itinerary.startDate && <p className="text-xs text-gray-400 mt-1">🗓️ 旅程日期：{itinerary.startDate} 至 {itinerary.endDate || "--"}</p>}
         </div>
 
-        {/* 🚀 Sticky 頂部導覽列 */}
         {itinerary.scheduleDays && itinerary.scheduleDays.length > 0 && (
-          <div className="sticky top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm z-30 pb-2 mb-2 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2" data-html2canvas-ignore="true">
+          <div className="sticky top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm z-30 pb-4 mb-4 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2" data-html2canvas-ignore="true">
             {itinerary.scheduleDays.map((day, idx) => (
               <button
                 key={`nav-${day.id}`} onClick={() => scrollToDay(day.id)}
@@ -106,19 +104,13 @@ export default function TravelMode({
               const ringClass = ringColors[dayIdx % ringColors.length];
 
               return (
-                // 🚀 必須加 position: relative 畀幽靈點定位
                 <div key={day.id} id={`travel-day-${day.id}`} className="relative flex flex-col gap-3">
                   
-                  {/* 👻 幽靈錨點 (Phantom Anchor) 黑科技：
-                      偷偷安放喺 Day 標題頭頂上方 100px 處 (手機版) / 20px 處 (電腦版)。
-                      當瀏覽器將呢粒幽靈推到 Viewport 0px 頂部時，真正嘅 Day 標題就會啱啱好停喺 Y = 100px 位置，
-                      完美避開佔高約 50px 嘅 Sticky 導覽列！完全無視任何瀏覽器差異！ */}
                   <div 
                     id={`travel-phantom-${day.id}`} 
                     className="absolute -top-[100px] md:-top-[20px] left-0 w-px h-px pointer-events-none invisible" 
                   />
 
-                  {/* 真正嘅 Day 標題列：手動 Scroll 過去時，透過 sticky top-[46px] 吸附喺導覽列底下 */}
                   <div className="flex items-center gap-2 sticky top-[46px] md:top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm z-20 py-2 border-b border-gray-100 dark:border-gray-800">
                     <div className={`w-3 h-8 ${colorClass} rounded-full`} />
                     <div>
@@ -149,47 +141,68 @@ export default function TravelMode({
                               <div className={`w-3 h-3 rounded-full ${colorClass} transition-shadow ${isHovered ? `ring-4 ${ringClass}/40` : ""}`} />
                             </div>
 
-                            <div className={`p-3.5 rounded-xl border shadow-sm transition-all ${
+                            <div className={`p-3 rounded-xl border shadow-sm transition-all ${
                               isHovered ? "bg-blue-50/40 dark:bg-gray-800 border-blue-300 dark:border-gray-600" : "bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700"
                             }`}>
                               
-                              <div className="flex flex-col gap-2.5">
+                              {/* ===================================================================== */}
+                              {/* 🔥 終極大師級單行 Header：
+                                  [📍 景點名稱 (Truncate)]  <--->  [ 09:00-11:30 ] [🗺️] [ ▼ Toggle掣 ] */}
+                              {/* ===================================================================== */}
+                              <div className="flex justify-between items-center gap-2">
                                 
-                                <div className="flex justify-between items-start gap-2">
-                                  <div 
-                                    onClick={() => onPlaceClick?.(place)}
-                                    className="font-bold text-sm md:text-base text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer flex items-center gap-1.5 truncate" title="點擊在地圖定位"
-                                  >
-                                    <span>📍</span>
-                                    <span className="truncate leading-tight">{place.name}</span>
-                                  </div>
+                                {/* 左：景點名 */}
+                                <div 
+                                  onClick={() => onPlaceClick?.(place)}
+                                  className="font-bold text-sm md:text-base text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer flex items-center gap-1.5 truncate py-0.5" title="點擊在地圖定位"
+                                >
+                                  <span>📍</span>
+                                  <span className="truncate leading-tight">{place.name}</span>
+                                </div>
 
+                                {/* 右：黃金三劍俠 */}
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   {item.startTime && (
-                                    <span className="shrink-0 text-[10px] md:text-[11px] font-black bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded shadow-inner">
+                                    <span className="text-[10px] md:text-[11px] font-black bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded shadow-inner select-none">
                                       {item.startTime} {item.endTime ? `- ${item.endTime}` : ""}
                                     </span>
                                   )}
-                                </div>
 
-                                <div className="flex justify-end pt-0.5">
+                                  {place.googleMapsUrl && (
+                                    <a 
+                                      href={place.googleMapsUrl} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()} 
+                                      className="w-6 h-6 flex items-center justify-center bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-600 hover:text-white text-blue-600 dark:text-blue-400 rounded-md transition text-xs shadow-2xs active:scale-90" 
+                                      title="在 Google Maps 中開啟導航"
+                                    >
+                                      🗺️
+                                    </a>
+                                  )}
+
+                                  {/* 🎯 被誤殺的本尊：純 Icon 展開按鈕 */}
                                   <button
                                     type="button"
                                     onClick={(e) => toggleCardExpand(item.id, e)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm border ${
+                                    className={`w-6 h-6 flex items-center justify-center rounded-md transition-all text-xs font-bold shadow-2xs active:scale-90 ${
                                       isExpanded 
-                                        ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800" 
-                                        : "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-700 hover:bg-blue-50/50 hover:text-blue-600"
+                                        ? "bg-blue-600 text-white dark:bg-blue-500" 
+                                        : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                                     }`}
+                                    title={isExpanded ? "收起詳情" : "展開詳情"}
                                   >
-                                    <span>{isExpanded ? "▲" : "▼"}</span>
-                                    <span>{isExpanded ? "收起詳情" : "展開詳情"}</span>
+                                    <span className={`transform transition-transform duration-200 inline-block ${isExpanded ? "rotate-180" : ""}`}>
+                                      ▼
+                                    </span>
                                   </button>
                                 </div>
 
                               </div>
 
+                              {/* 櫃桶仔 Details */}
                               {isExpanded && (
-                                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/80 flex flex-col gap-2.5 text-xs animate-fadeIn">
+                                <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700/80 flex flex-col gap-2 text-xs animate-fadeIn">
                                   
                                   {place.address && (
                                     <div className="text-gray-700 dark:text-gray-300 leading-tight">
@@ -208,7 +221,7 @@ export default function TravelMode({
                                   {place.customFields && Object.keys(place.customFields).length > 0 && (
                                     <>
                                       <div className="w-full h-px bg-gray-100 dark:bg-gray-800 my-0.5"></div>
-                                      <div className="flex flex-col gap-2.5">
+                                      <div className="flex flex-col gap-2">
                                         {Object.entries(place.customFields).map(([k, v]) => {
                                           if (v === null || v === undefined || v === "") return null;
 
@@ -245,14 +258,6 @@ export default function TravelMode({
                                       <div className="bg-gray-50 dark:bg-gray-900/40 p-2 rounded border border-gray-100 dark:border-gray-800 text-[11px] text-gray-600 dark:text-gray-400 space-y-0.5 max-h-28 overflow-y-auto custom-scrollbar">
                                         {place.openingHours.map((h: any, i: number) => <div key={i}>{h}</div>)}
                                       </div>
-                                    </div>
-                                  )}
-
-                                  {place.googleMapsUrl && (
-                                    <div className="pt-1 pb-1">
-                                      <a href={place.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-bold inline-flex items-center gap-1">
-                                        <span>🔗</span> 在 Google Maps 中開啟地標
-                                      </a>
                                     </div>
                                   )}
 

@@ -8,7 +8,6 @@ interface PlaceLibraryProps {
   onPlaceClick: (place: Place) => void;
   onEditPlace?: (place: Place) => void; 
   onDeletePlace?: (placeId: string) => void;
-  // 🚀 接收由 Sidebar 傳入嘅 Hover 神經線
   hoveredPlaceId?: string | null;
   onHoverPlace?: (id: string | null) => void;
 }
@@ -21,15 +20,13 @@ export default function PlaceLibrary({
   const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
   const [expandedProvinces, setExpandedProvinces] = useState<Record<string, boolean>>({});
 
-  // 🚀 黑科技準備：用黎裝住每一張卡片嘅 DOM 節點
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // 🚀 聯動黑科技：當用家喺地圖 Hover 某個 Marker 時，如果清單未見到該卡片，自動 Scroll 過去！
   useEffect(() => {
     if (hoveredPlaceId && cardRefs.current[hoveredPlaceId]) {
       cardRefs.current[hoveredPlaceId]?.scrollIntoView({
         behavior: "smooth",
-        block: "nearest", // 確保只做最小幅度嘅滾動，唔會搞到成版亂跳
+        block: "nearest", 
       });
     }
   }, [hoveredPlaceId]);
@@ -56,17 +53,11 @@ export default function PlaceLibrary({
   }, [places, searchQuery]);
 
   const toggleCountry = (country: string) => {
-    setExpandedCountries(prev => ({ 
-      ...prev, 
-      [country]: !(prev[country] ?? true) 
-    }));
+    setExpandedCountries(prev => ({ ...prev, [country]: !(prev[country] ?? true) }));
   };
 
   const toggleProvince = (key: string) => {
-    setExpandedProvinces(prev => ({ 
-      ...prev, 
-      [key]: !(prev[key] ?? true) 
-    }));
+    setExpandedProvinces(prev => ({ ...prev, [key]: !(prev[key] ?? true) }));
   };
 
   const expandAll = () => {
@@ -96,8 +87,11 @@ export default function PlaceLibrary({
   return (
     <div className="flex flex-col gap-4 animate-fadeIn">
       
-      {/* 頂部搜尋與控制區 */}
-      <div className="sticky top-0 bg-white dark:bg-gray-900 z-10 pb-2 border-b border-gray-100 dark:border-gray-800">
+      {/* ===================================================================== */}
+      {/* 🔥 天羅封印：z-[50] + transform translate-y-0
+          強迫瀏覽器開啟 GPU 頂層硬件圖層給 Header，下方卡片敢越位半步當場遭天雷劈死！ */}
+      {/* ===================================================================== */}
+      <div className="sticky top-0 z-[50] transform translate-y-0 bg-white dark:bg-gray-900 -mt-4 -mx-4 px-4 pb-2 border-b border-gray-100 dark:border-gray-800 shadow-xs">
         <input
           type="text"
           placeholder="🔍 搜尋已儲存景點或地址..."
@@ -123,7 +117,11 @@ export default function PlaceLibrary({
         <p className="text-xs text-center text-gray-400 py-6 italic">找不到符合條件的地點 🗺️</p>
       )}
 
-      <div className="flex flex-col gap-3">
+      {/* ===================================================================== */}
+      {/* 🔥 地網結界：relative z-0
+          把下方整個清單死死困在 z-0 結界沙盒內，絕對無法越獄！ */}
+      {/* ===================================================================== */}
+      <div className="relative z-0 flex flex-col gap-3">
         {Object.entries(groupedPlaces).map(([country, provinces]) => {
           const isCountryExpanded = expandedCountries[country] ?? true;
 
@@ -158,20 +156,15 @@ export default function PlaceLibrary({
                         {isProvinceExpanded && (
                           <div className="flex flex-col gap-1.5 pl-2.5 border-l border-gray-200 dark:border-gray-700 animate-fadeIn">
                             {items.map((place) => {
-                              // 🚀 判斷呢張卡片係咪正處於 Hover 狀態
                               const isThisHovered = hoveredPlaceId === place.id;
 
                               return (
                                 <div
                                   key={place.id}
-                                  ref={(el) => { cardRefs.current[place.id] = el; }} // 綁定 ref 供 scrollIntoView 尋找
+                                  ref={(el) => { cardRefs.current[place.id] = el; }} 
                                   onClick={() => onPlaceClick(place)}
-                                  
-                                  // 🚀 雙向觸發：滑鼠入/出時，呼叫 onHoverPlace
                                   onMouseEnter={() => onHoverPlace?.(place.id)}
                                   onMouseLeave={() => onHoverPlace?.(null)}
-                                  
-                                  // 🚀 樣式聯動：如果被 Hover，亮起 Amber 邊框同輕微右移 (translate-x-0.5)
                                   className={`p-2 rounded-lg transition-all duration-200 cursor-pointer text-sm flex justify-between items-center group border ${
                                     isThisHovered 
                                       ? "border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 shadow-md ring-2 ring-amber-400/20 translate-x-0.5" 

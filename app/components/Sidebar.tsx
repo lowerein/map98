@@ -67,7 +67,7 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       {/* 上半部：清單區域 */}
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-white dark:bg-gray-900 transition-colors relative">
+      <div className="flex-1 overflow-y-auto px-4 mt-4 custom-scrollbar bg-white dark:bg-gray-900 transition-colors relative">
         {currentTab === "places" && (
           <PlaceLibrary 
             places={props.places} 

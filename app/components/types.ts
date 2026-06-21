@@ -20,6 +20,7 @@ export type Place = {
   country?: string; 
   province?: string;
   customFields?: CustomField[];
+  color?: string;
 };
 
 export type ScheduleItem = {

@@ -63,6 +63,9 @@ export function useTripData() {
   const [placeHours, setPlaceHours] = useState<string[]>([]);
   const [placeCountry, setPlaceCountry] = useState("");
   const [placeProvince, setPlaceProvince] = useState("");
+  
+  // 🎨 顏色記憶：宣告 state，預設為 Google 皇家藍
+  const [placeColor, setPlaceColor] = useState<string>("#2563eb");
 
   const [dynamicFieldValues, setDynamicFieldValues] = useState<Record<string, any>>({});
   const [activeFieldsConfig, setActiveFieldsConfig] = useState<any[]>([]);
@@ -181,6 +184,7 @@ export function useTripData() {
     setEditingPlaceId(null); setPlaceName(data.name); setPlaceAddress(data.address || "");
     setPlacePhone(data.phoneNumber || ""); setPlaceHours(data.openingHours || []);
     setPlaceCountry(data.country || ""); setPlaceProvince(data.province || "");
+    setPlaceColor("#2563eb"); // 🎨 新增地點時重置為預設藍
     setDynamicFieldValues({});
     setSelectedLocation({ lat: data.lat, lng: data.lng, googleMapsUrl: data.url });
     setPanLocation(null); setSidebarSelectedPlace(null);
@@ -190,6 +194,7 @@ export function useTripData() {
     setEditingPlaceId(place.id); setPlaceName(place.name); setPlaceAddress(place.address || "");
     setPlacePhone(place.phoneNumber || ""); setPlaceHours(place.openingHours || []);
     setPlaceCountry(place.country || ""); setPlaceProvince(place.province || "");
+    setPlaceColor(place.color || "#2563eb"); // 🎨 讀取舊色
     setDynamicFieldValues((place.customFields as any) || {});
     setSelectedLocation({ lat: place.lat, lng: place.lng, googleMapsUrl: place.googleMapsUrl });
     setPanLocation(null); setSidebarSelectedPlace(place);
@@ -201,7 +206,6 @@ export function useTripData() {
     setSelectedLocation(null); setEditingPlaceId(null);
   };
 
-  // 🚀 新增：處理撳 ✏️ 編輯按鈕嘅邏輯
   const handleEditPlace = (place: Place) => {
     setEditingPlaceId(place.id);
     setPlaceName(place.name);
@@ -210,6 +214,7 @@ export function useTripData() {
     setPlaceHours(place.openingHours || []);
     setPlaceCountry(place.country || "");
     setPlaceProvince(place.province || "");
+    setPlaceColor(place.color || "#2563eb"); // 🎨 讀取舊色
     setDynamicFieldValues((place.customFields as any) || {});
     setSelectedLocation({ lat: place.lat, lng: place.lng, googleMapsUrl: place.googleMapsUrl });
     setPanLocation(null);
@@ -218,7 +223,9 @@ export function useTripData() {
 
   const resetPlaceForm = () => {
     setPlaceName(""); setPlaceAddress(""); setPlacePhone(""); setPlaceHours([]);
-    setPlaceCountry(""); setPlaceProvince(""); setDynamicFieldValues({});
+    setPlaceCountry(""); setPlaceProvince(""); 
+    setPlaceColor("#2563eb"); // 🎨 重置顏色
+    setDynamicFieldValues({});
     setSelectedLocation(null); setPanLocation(null); setSidebarSelectedPlace(null);
     setEditingPlaceId(null);
   };
@@ -239,6 +246,7 @@ export function useTripData() {
       openingHours: placeHours,
       country: placeCountry,
       province: placeProvince,
+      color: placeColor, // 🎨 正式寫入 payload 傳給 Prisma
       customFields: valuesToSave, 
     };
 
@@ -323,8 +331,14 @@ export function useTripData() {
     });
   };
 
-  const handleRenameItinerary = (id: string, newName: string) => {
+const handleRenameItinerary = (id: string, newName: string) => {
     setItineraries((prev) => prev.map((i) => (i.id === id ? { ...i, name: newName } : i)));
+    
+    // 🚀 保底絕殺：如果改的是當前正處於 Active 的行程，強行把它的記憶體名字也同步更新！
+    if (activeItineraryId === id && activeItinerary) {
+      activeItinerary.name = newName;
+    }
+
     updateItineraryAction(id, { name: newName }).catch((err) =>
       console.error("重新命名失敗:", err)
     );
@@ -429,10 +443,13 @@ export function useTripData() {
     savedPlaces, selectedLocation, panLocation, sidebarSelectedPlace, hoveredPlaceId, setHoveredPlaceId, editingPlaceId,
     placeName, setPlaceName, placeAddress, setPlaceAddress, placePhone, setPlacePhone, placeHours, setPlaceHours,
     placeCountry, placeProvince, dynamicFieldValues, setDynamicFieldValues, activeFieldsConfig,
+    
+    // 🎨 正式送出給外部 UI 使用
+    placeColor, setPlaceColor,
+    
     itineraries, activeItineraryId, activeItinerary, hiddenDays, dailyPaths, visiblePaths, toggleDayVisibility,
 
     handleMapClick, handleMarkerClick, handleSidebarPlaceClick, handleSavePlace, handleDeletePlace, handleCancel,
-    // 🚀 確保有 return 呢個 handleEditPlace 出去！
     handleEditPlace, 
     handleCreateItinerary, handleDeleteItinerary, handleRenameItinerary, handleSwitchItinerary,
     handleDateRangeChange, handleAssignPlace, handleUpdateTime, handleRemoveItem, handleDragEnd,

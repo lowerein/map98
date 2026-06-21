@@ -114,16 +114,21 @@ export default function OrganizeHeader({
         </button>
       </div>
 
-      {/* 🚀 呼叫全新抽離出嚟嘅彈窗組件 */}
+{/* 🚀 絕殺黑科技：利用 key={activeItineraryId + (activeItinerary?.name || "")} 
+          強迫 Dialog 在切換行程或改名後「當場轉世重生」，徹底幹掉表單殘留舊名字的 Bug！ */}
       <ItineraryDialog 
+        key={activeItineraryId + (activeItinerary?.name || "")} 
         isOpen={isDialogOpen}
         mode={dialogMode}
         onClose={() => setIsDialogOpen(false)}
         onSubmit={(name, start, end) => {
           if (dialogMode === "create") onCreateItinerary(name, start, end);
-          else { onRenameItinerary(activeItineraryId, name); onDateRangeChange(start, end); }
+          else { 
+            onRenameItinerary(activeItineraryId, name); 
+            onDateRangeChange(start, end); 
+          }
         }}
-        onDelete={() => onDeleteItinerary(activeItineraryId)} // 🚀 傳入刪除指令
+        onDelete={() => onDeleteItinerary(activeItineraryId)} 
         initialData={{
           name: activeItinerary?.name || "",
           startDate: activeItinerary?.startDate || "",

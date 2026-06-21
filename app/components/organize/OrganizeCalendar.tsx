@@ -18,23 +18,35 @@ interface OrganizeCalendarProps {
   showList: boolean;
   hoveredPlaceId: string | null;
   onFlyToPlace: (place: Place) => void;
+  onEditPlace?: (place: Place) => void; 
 }
 
 export default function OrganizeCalendar({ 
   calendarRef, startDate, validRangeEnd, localEvents, places, 
   selectedPlace, setSelectedPlace, updateLocalStateFromCalendar, showList,
-  hoveredPlaceId, onFlyToPlace 
+  hoveredPlaceId, onFlyToPlace, onEditPlace 
 }: OrganizeCalendarProps) {
 
-  // 🚀 新增：控制 24 小時全日檢視嘅 Toggle 狀態 (預設 false = 06:00 - 24:00)
   const [isExtendedView, setIsExtendedView] = useState(false);
-
   const hasDateRange = startDate && validRangeEnd;
+
+  // 🚀 核心調色盤對接：將 localEvents 注入景點自訂顏色
+  const coloredEvents = localEvents.map((ev) => {
+    const place = places.find(p => p.id === ev.extendedProps?.placeId);
+    const customColor = place?.color || "#2563eb"; // 預設 Google 皇家藍
+
+    return {
+      ...ev,
+      backgroundColor: customColor,
+      borderColor: customColor,
+      textColor: "#ffffff" 
+    };
+  });
 
   return (
     <div className="flex flex-col flex-1 bg-white dark:bg-gray-900 transition-colors relative min-w-[300px]">
       
-      {/* 🚀 時間軸範圍切換列 */}
+      {/* 時間軸範圍切換列 */}
       <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-gray-950/60 border-b border-gray-200 dark:border-gray-800 select-none shrink-0">
         <span className="text-xs font-bold text-gray-500 dark:text-gray-400 flex items-center gap-1">
           <span>🕒</span> {isExtendedView ? "00:00 - 24:00 (全日視角)" : "06:00 - 24:00 (標準日間)"}
@@ -67,13 +79,14 @@ export default function OrganizeCalendar({
               visibleRange: hasDateRange ? { start: startDate, end: validRangeEnd } : undefined
             }
           }}
-          // 🚀 關鍵：套用動態時間範圍
           slotMinTime={isExtendedView ? "00:00:00" : "06:00:00"}
           slotMaxTime="24:00:00"
           allDaySlot={false}
           editable={true} 
           droppable={true}
-          events={localEvents}
+          
+          events={coloredEvents} // 👈 餵入帶顏色的 Events 陣列
+          
           eventReceive={updateLocalStateFromCalendar}
           eventDrop={updateLocalStateFromCalendar}
           eventResize={updateLocalStateFromCalendar}
@@ -109,23 +122,46 @@ export default function OrganizeCalendar({
 
             return (
               <div 
+                // 🚀 拿走寫死的 bg-blue-600，設定為 bg-transparent，完美呈現 FullCalendar 注入嘅背景色！
+                // 當被選中或 Hover 時，才疊上黑色邊框或高亮黃色
                 className={`w-full h-full p-1 text-[11px] leading-tight truncate text-white font-semibold cursor-pointer flex items-center justify-between rounded transition-all duration-150 relative group/ev ${
                   isEventSelected 
-                    ? "ring-2 ring-black dark:ring-white border border-white bg-blue-700 dark:bg-blue-800" 
+                    ? "ring-2 ring-black dark:ring-white border border-white font-black shadow-md" 
                     : isEventHovered
-                      ? "bg-amber-500 dark:bg-amber-600 ring-4 ring-amber-400 dark:ring-amber-500 font-black scale-[1.01] z-30 text-gray-900 dark:text-white"
-                      : "bg-blue-600 dark:bg-blue-600/80 hover:bg-blue-500"
+                      ? "!bg-amber-500 ring-4 ring-amber-400 font-black scale-[1.01] z-30 !text-gray-900 shadow-lg"
+                      : "bg-transparent hover:brightness-110"
                 }`}
               >
-                <span className="truncate pr-6">📍 {eventInfo.event.title}</span>
+                <span className="truncate pr-11">📍 {eventInfo.event.title}</span>
+                
                 {place && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onFlyToPlace(place); }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center bg-white/90 dark:bg-gray-800 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-500 hover:text-white transition shadow-sm opacity-0 group-hover/ev:opacity-100 z-40 text-[10px]"
-                    title="飛去地圖定位"
+                  <div 
+                    onMouseDown={(e) => e.stopPropagation()} 
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/ev:opacity-100 z-40 bg-black/25 dark:bg-white/25 p-0.5 rounded backdrop-blur-xs transition-opacity"
                   >
-                    🎯
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); 
+                        onEditPlace?.(place);
+                      }}
+                      className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 rounded hover:bg-amber-500 hover:text-white transition shadow-sm text-[9px]"
+                      title="編輯此景點"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFlyToPlace(place);
+                      }}
+                      className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-500 hover:text-white transition shadow-sm text-[9px]"
+                      title="飛去地圖定位"
+                    >
+                      🎯
+                    </button>
+                  </div>
                 )}
               </div>
             );

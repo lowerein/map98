@@ -90,6 +90,7 @@ model Place {
   country       String?
   province      String?
   googleMapsUrl String?
+  color         String?  @default("#2563eb")
   customFields  Json?       @default("{}")
   status        PlaceStatus @default(APPROVED)
 

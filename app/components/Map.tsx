@@ -1,7 +1,6 @@
 // components/Map.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
-// 🚀 1. 補回 MapControl 同 ControlPosition 引入
 import { APIProvider, InfoWindow, MapControl, ControlPosition } from "@vis.gl/react-google-maps";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTripData } from "../hooks/useTripData"; 
@@ -17,16 +16,13 @@ export default function Map() {
   const searchParams = useSearchParams();
   const isOrganizeMode = searchParams.get("mode") === "organize";
 
-  // 📍 提取所有核心業務邏輯與狀態
   const trip = useTripData();
 
-  // 📐 UI 佈局狀態
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(384);
   const isResizing = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // 🚀 控制手機版路線選單的展開狀態
   const [showRouteMenu, setShowRouteMenu] = useState(false);
 
   useEffect(() => {
@@ -54,6 +50,9 @@ export default function Map() {
           onSaveAndClose={trip.handleSaveCalendarChanges}
           onUpdateLiveEvents={trip.handleUpdateLiveEvents}
           onClose={() => router.push("/")} 
+          
+          // 🚀 斷線一修復：正式把大腦嘅 Edit Function 傳入 OrganizeMode！
+          onEditPlace={trip.handleEditPlace} 
         />
       ) : (
         <div className="relative w-full h-[calc(100vh-56px)] flex flex-col-reverse md:flex-row overflow-hidden bg-gray-100 dark:bg-gray-950 transition-colors">
@@ -102,31 +101,17 @@ export default function Map() {
               onMarkerMouseLeave={() => trip.setHoveredPlaceId(null)}
               dailyPaths={trip.visiblePaths} 
             >
-              {/* 🌟 1. 搜尋欄：由 MapSearchBar 內部自理 TOP_CENTER */}
               <MapSearchBar onPlaceSelect={trip.handleMapClick} />
 
-              {/* 🚀 2. 當日路線 Toggle：歸位至搜尋欄左手邊 (原生 TOP_LEFT) */}
               {trip.dailyPaths.length > 0 && (
                 <MapControl position={ControlPosition.TOP_LEFT}>
                   <div className="ml-3 mt-4 flex flex-col items-start">
-                    
-                    {/* 🚀 極簡正方形掣：無文字、無計數器，高度與 SearchBar 的 h-10 完美呼應 */}
                     <button 
-                      type="button"
-                      onClick={() => setShowRouteMenu(!showRouteMenu)}
-                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all"
-                      title="切換路線圖層"
-                    >
-                      🗺️
-                    </button>
-
-                    {/* 彈出選單 */}
-                    <div className={`${
-                      showRouteMenu ? "flex animate-slideDown" : "hidden"
-                    } md:flex flex-col gap-1 mt-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-3 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-h-[45vh] md:max-h-[60vh] overflow-y-auto custom-scrollbar min-w-[130px]`}>
-                      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 border-b border-gray-100 dark:border-gray-800 pb-1 mb-1">
-                        <span>🗺️ 顯示路線</span>
-                      </div>
+                      type="button" onClick={() => setShowRouteMenu(!showRouteMenu)}
+                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all" title="切換路線選單"
+                    >🗺️</button>
+                    <div className={`${showRouteMenu ? "flex animate-slideDown" : "hidden"} md:flex flex-col gap-1 mt-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-3 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-h-[45vh] md:max-h-[60vh] overflow-y-auto custom-scrollbar min-w-[130px]`}>
+                      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 border-b border-gray-100 dark:border-gray-800 pb-1 mb-1"><span>🗺️ 顯示路線</span></div>
                       <div className="flex flex-col gap-0.5">
                         {trip.dailyPaths.map((pathData, idx) => {
                           const isVisible = !trip.hiddenDays.has(pathData.day);
@@ -140,12 +125,10 @@ export default function Map() {
                         })}
                       </div>
                     </div>
-
                   </div>
                 </MapControl>
               )}
 
-              {/* 彈出表單 InfoWindow */}
               {trip.selectedLocation && (
                 <InfoWindow position={trip.selectedLocation} onCloseClick={trip.handleCancel} pixelOffset={[0, -40]}>
                   <AddPlaceForm 
@@ -163,6 +146,8 @@ export default function Map() {
                     onCancel={trip.handleCancel} 
                     isEditing={!!trip.editingPlaceId} 
                     googleMapsUrl={trip.selectedLocation.googleMapsUrl} 
+                    placeColor={trip.placeColor}
+  setPlaceColor={trip.setPlaceColor}
                   />
                 </InfoWindow>
               )}
@@ -170,6 +155,50 @@ export default function Map() {
           </div>
         </div>
       )}
+
+      {/* 🌟 結界二修復（全域黑科技）：Organize Mode 專用之全域毛玻璃表單彈窗 🌟
+          只要處於 Organize Mode、大腦又測出 editingPlaceId 有嘢，直接於最頂層召喚 AddPlaceForm！ */}
+      {isOrganizeMode && trip.editingPlaceId && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp"
+          >
+            {/* 彈窗頂部 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✏️</span>
+                <h3 className="font-black text-base text-gray-900 dark:text-white tracking-wide">編輯景點資料</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={trip.handleCancel}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 font-bold text-sm transition"
+              >✕</button>
+            </div>
+
+            {/* 表單載體 */}
+<div className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col [&_form]:w-full [&_form]:max-w-none [&_input[type=text]]:w-full [&_input[type=tel]]:w-full [&_input[type=number]]:w-full [&_select]:w-full [&_textarea]:w-full">
+              <AddPlaceForm 
+                placeName={trip.placeName} setPlaceName={trip.setPlaceName} 
+                placeAddress={trip.placeAddress} setPlaceAddress={trip.setPlaceAddress}
+                placePhone={trip.placePhone} setPlacePhone={trip.setPlacePhone}
+                placeHours={trip.placeHours}
+                activeFieldsConfig={trip.activeFieldsConfig}
+                dynamicFieldValues={trip.dynamicFieldValues}
+                setDynamicFieldValues={trip.setDynamicFieldValues}
+                onSubmit={(e, finalDynamicValues) => {
+                  trip.handleSavePlace(e, finalDynamicValues);
+                }} 
+                onCancel={trip.handleCancel} 
+                isEditing={true} 
+                googleMapsUrl={trip.selectedLocation?.googleMapsUrl || ""} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </APIProvider>
   );
 }

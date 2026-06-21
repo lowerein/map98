@@ -5,8 +5,8 @@ import { Place } from "../types";
 import PlaceDetailsPanel from "../sidebar/PlaceDetailsPanel"; 
 
 interface OrganizeSidebarProps {
-  availablePlaces: Place[]; // ⚠️ 依家這裡會裝住「全量 Places」
-  scheduledPlaceIds: Set<string>; // 🚀 新增：接收日曆上已存在嘅景點 ID
+  availablePlaces?: Place[]; 
+  scheduledPlaceIds?: Set<string>; 
   selectedPlace: Place | null;
   setSelectedPlace: (place: Place | null) => void;
   hoveredPlaceId: string | null;
@@ -15,11 +15,13 @@ interface OrganizeSidebarProps {
   showList: boolean;
   listWidth: number;
   onFlyToPlace: (place: Place) => void;
+  onEditPlace?: (place: Place) => void; 
 }
 
 export default function OrganizeSidebar({ 
-  availablePlaces, scheduledPlaceIds, selectedPlace, setSelectedPlace, 
-  hoveredPlaceId, setHoveredPlaceId, dragZoneRef, showList, listWidth, onFlyToPlace 
+  availablePlaces = [], scheduledPlaceIds = new Set(), selectedPlace, setSelectedPlace, 
+  hoveredPlaceId, setHoveredPlaceId, dragZoneRef, showList, listWidth, 
+  onFlyToPlace, onEditPlace 
 }: OrganizeSidebarProps) {
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,7 +78,6 @@ export default function OrganizeSidebar({
         
         <div className="flex flex-col flex-1 overflow-hidden p-4 pb-2">
           
-          {/* 🚀 頂部進度列進化 */}
           <div className="flex justify-between items-center mb-1">
             <h2 className="font-bold text-gray-700 dark:text-gray-200 text-sm md:text-base">
               📍 地點庫 ({availablePlaces.length})
@@ -134,8 +135,10 @@ export default function OrganizeSidebar({
                                   {items.map((place) => {
                                     const isSelected = selectedPlace?.id === place.id;
                                     const isHover = hoveredPlaceId === place.id;
-                                    // 🚀 判斷該景點是否已經喺右邊日曆出現
                                     const isScheduled = scheduledPlaceIds.has(place.id);
+                                    
+                                    // 🚀 1. 提取景點色，如果未設就用標準藍色保底
+                                    const customColor = place.color || "#3b82f6";
                                     
                                     return (
                                       <div 
@@ -143,7 +146,9 @@ export default function OrganizeSidebar({
                                         onClick={() => setSelectedPlace(place)} onDoubleClick={() => onFlyToPlace(place)} 
                                         onMouseEnter={() => setHoveredPlaceId(place.id)} onMouseLeave={() => setHoveredPlaceId(null)}     
                                         
-                                        // 🚀 智能樣式：已排入的景點會透出淡綠色，文字變灰
+                                        // 🚀 2. 注入 inline style 賦予左側 6px 專屬調色能量邊！
+                                        style={{ borderLeftWidth: '6px', borderLeftColor: customColor }}
+                                        
                                         className={`fc-event relative p-2.5 border rounded-md cursor-grab shadow-sm transition-all duration-200 group ${
                                           isSelected 
                                             ? "border-blue-500 bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-white font-bold ring-2 ring-blue-500/20" 
@@ -155,11 +160,15 @@ export default function OrganizeSidebar({
                                         }`}
                                       >
                                         <div className="flex items-start justify-between gap-1 mb-0.5">
-                                          <div className={`font-bold text-xs md:text-sm truncate pr-2 ${isScheduled ? "line-through opacity-70" : ""}`}>
-                                            {place.name}
+                                          
+                                          {/* 🚀 3. 名字左邊加一粒精緻調色點 */}
+                                          <div className="flex items-center gap-1.5 truncate pr-2">
+                                            <span className="w-2 h-2 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: customColor }} />
+                                            <span className={`font-bold text-xs md:text-sm truncate ${isScheduled ? "line-through opacity-70" : ""}`}>
+                                              {place.name}
+                                            </span>
                                           </div>
                                           
-                                          {/* 🚀 蓋上綠色 ✓ 徽章 */}
                                           {isScheduled && (
                                             <span className="shrink-0 text-[9px] font-black bg-emerald-500 dark:bg-emerald-600 text-white px-1 rounded select-none">
                                               ✓ 已排
@@ -167,9 +176,25 @@ export default function OrganizeSidebar({
                                           )}
                                         </div>
 
-                                        {place.address && <div className="text-[10px] opacity-70 truncate pointer-events-none">📍 {place.address}</div>}
+                                        {place.address && <div className="text-[10px] opacity-70 truncate pointer-events-none pl-3.5">📍 {place.address}</div>}
                                         
-                                        <button onClick={(e) => { e.stopPropagation(); onFlyToPlace(place); }} onMouseDown={(e) => e.stopPropagation()} className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center bg-gray-50 dark:bg-gray-700 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 rounded opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10 text-xs" title="飛去地圖定位">🎯</button>
+                                        {/* 毛玻璃操作組 */}
+                                        <div 
+                                          onMouseDown={(e) => e.stopPropagation()} 
+                                          className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white/95 dark:bg-gray-800/95 p-1 rounded-lg shadow-md border border-gray-100 dark:border-gray-700 backdrop-blur-xs"
+                                        >
+                                          <button 
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); onEditPlace?.(place); }} 
+                                            className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-amber-500 hover:text-white text-amber-600 dark:text-amber-400 rounded transition text-xs shadow-2xs" title="編輯此景點"
+                                          >✏️</button>
+                                          <button 
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); onFlyToPlace(place); }} 
+                                            className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 rounded transition text-xs shadow-2xs" title="在地圖定位"
+                                          >🎯</button>
+                                        </div>
+
                                       </div>
                                     );
                                   })}

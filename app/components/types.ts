@@ -21,6 +21,9 @@ export type Place = {
   province?: string;
   customFields?: CustomField[];
   color?: string;
+access?: "owner" | "editor" | "viewer";
+  isShared?: boolean;
+  ownerName?: string;
 };
 
 export type ScheduleItem = {
@@ -57,4 +60,8 @@ export type Itinerary = {
   endDate: string;
   scheduleDays: ScheduleDay[];    // 屬於呢個行程嘅 Weekly View
   calendarEvents: CalendarEvent[]; // 屬於呢個行程嘅 Organize Mode 日曆
+
+  access?: "owner" | "editor" | "viewer";
+  isShared?: boolean;
+  ownerName?: string;
 };

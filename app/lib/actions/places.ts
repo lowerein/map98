@@ -17,10 +17,14 @@ export type PlaceDTO = {
   openingHours?: string[]
   country?: string
   province?: string
-  color?: string // 🎨 1. 補領 DTO 身份證
+  color?: string 
   customFields?: Record<string, unknown>
   ownerId: string
   access: "owner" | "editor" | "viewer"
+
+  // 🔥 升級：對接前端 PlaceLibrary.tsx 頂部雙 Tab 專用的識別護照！
+  isShared?: boolean
+  ownerName?: string
 }
 
 export type SavePlaceInput = {
@@ -34,14 +38,15 @@ export type SavePlaceInput = {
   openingHours?: string[]
   country?: string
   province?: string
-  color?: string // 🎨 2. 補領 Input 接收簽證
+  color?: string 
   googlePlaceId?: string
   customFields?: Record<string, unknown>
 }
 
 function serialize(
   p: DbPlace,
-  access: PlaceDTO["access"]
+  access: PlaceDTO["access"],
+  meta?: { isShared?: boolean; ownerName?: string } // 🚀 擴容：接收擁有者標籤
 ): PlaceDTO {
   return {
     id: p.id,
@@ -54,14 +59,15 @@ function serialize(
     openingHours: p.openingHours ?? [],
     country: p.country ?? undefined,
     province: p.province ?? undefined,
-    color: p.color ?? "#2563eb", // 🎨 3. 讀取時從 DB 撈返出嚟（無就畀預設藍）
+    color: p.color ?? "#2563eb", 
     customFields: (p.customFields as Record<string, unknown>) ?? {},
     ownerId: p.ownerId,
     access,
+    isShared: meta?.isShared ?? false,
+    ownerName: meta?.ownerName,
   }
 }
 
-/** Owner + share users for a place, used to fan out realtime pings. */
 async function affectedUsers(placeId: string): Promise<string[]> {
   const place = await prisma.place.findUnique({
     where: { id: placeId },
@@ -71,10 +77,6 @@ async function affectedUsers(placeId: string): Promise<string[]> {
   return [place.ownerId, ...place.shares.map((s) => s.userId)]
 }
 
-/**
- * Resolves a user's access level to a place: owner > editor > viewer > null.
- * 🚀 升級：如果明文無 Share，會自動檢查該景點是否掛在「用家有權讀寫的行程」入面！
- */
 async function resolveAccess(
   placeId: string,
   userId: string
@@ -86,11 +88,9 @@ async function resolveAccess(
   const share = await prisma.placeShare.findUnique({
     where: { placeId_userId: { placeId, userId } },
   })
-  if (share) return { place, access: share.role === "EDITOR" ? "editor" : "viewer" }
+  // 嚴格執行 PM 批示：只要不是 owner，一律只給 viewer 權限，禁止越權改資料！
+  if (share) return { place, access: "viewer" }
 
-  // =====================================================================
-  // 🌟 行程依附偷渡通道：如果呢個地方喺「我有權看」嘅行程入面，自動放行編輯權！
-  // =====================================================================
   try {
     const accessibleItineraries = await prisma.itinerary.findMany({
       where: {
@@ -103,18 +103,16 @@ async function resolveAccess(
     })
 
     for (const iti of accessibleItineraries) {
-      // 檢查側邊欄行程清單 JSON
       const sDays = (iti.scheduleDays as any[]) || []
       for (const day of sDays) {
         const items = (day.items as any[]) || []
         if (items.some((item: any) => item?.placeId === placeId)) {
-          return { place, access: "editor" }
+          return { place, access: "viewer" } // 行程偷渡客同樣只准看，不准動原生地標
         }
       }
-      // 檢查大日曆排程 JSON
       const cEvents = (iti.calendarEvents as any[]) || []
       if (cEvents.some((ev: any) => ev?.extendedProps?.placeId === placeId)) {
-        return { place, access: "editor" }
+        return { place, access: "viewer" }
       }
     }
   } catch (err) {
@@ -124,25 +122,31 @@ async function resolveAccess(
   return null
 }
 
-/** * All places the current user owns or has been granted access to. 
- * 🚀 升級：會自覺搜刮全量共享行程，將入面所有依附嘅景點一齊打包派發！
+/** * 🚀 終極全域搜刮引擎：[ Owned ] + [ PlaceShare ] + [ 共享行程依附點 ] 大合流
  */
 export async function getPlaces(): Promise<PlaceDTO[]> {
   const user = await requireUser()
 
+  // 1. 我自己的點
   const owned = await prisma.place.findMany({
     where: { ownerId: user.id },
     orderBy: { createdAt: "asc" },
   })
-  const shared = await prisma.placeShare.findMany({
+
+  // 2. 契哥明確透過 PlaceShare 給我的點（順手連契哥個全名撈埋出嚟！）
+  const sharedRaw = await prisma.placeShare.findMany({
     where: { userId: user.id },
-    include: { place: true },
+    include: { 
+      place: {
+        include: {
+          owner: { select: { name: true, email: true } }
+        }
+      } 
+    },
   })
 
-  // =====================================================================
-  // 🌟 行程依附搜刮通道：挖出所有我有權參與嘅行程，提取入面用過嘅所有 placeId
-  // =====================================================================
-  let piggybackPlaces: DbPlace[] = []
+  // 3. 挖出所有我參與的行程中，被人排進去但未 explicitly share 給我的點
+  let piggybackRaw: any[] = []
 
   try {
     const accessibleItineraries = await prisma.itinerary.findMany({
@@ -171,34 +175,43 @@ export async function getPlaces(): Promise<PlaceDTO[]> {
       }
     }
 
-    // 排除咗用家名下本來就睇得到嘅景點 ID
     const alreadyHaveIds = new Set([
       ...owned.map(p => p.id),
-      ...shared.map(s => s.place.id)
+      ...sharedRaw.map(s => s.place.id)
     ])
 
     const missingIds = Array.from(neededPlaceIds).filter(id => !alreadyHaveIds.has(id))
 
     if (missingIds.length > 0) {
-      piggybackPlaces = await prisma.place.findMany({
-        where: { id: { in: missingIds } }
+      // 順手 include 擁有者，等這批偷渡點都可以堂堂正正列入「與我共用」Tab！
+      piggybackRaw = await prisma.place.findMany({
+        where: { id: { in: missingIds } },
+        include: { owner: { select: { name: true, email: true } } }
       })
     }
   } catch (err) {
     console.warn("getPlaces 行程景點搜刮器略過:", err)
   }
 
+  // 4. 完美打標籤大包裝
+  const sharedDTOs = sharedRaw.map((s) => {
+    const p = s.place
+    const displayOwner = p.owner?.name || p.owner?.email?.split('@')[0] || "好友"
+    return serialize(p, "viewer", { isShared: true, ownerName: displayOwner })
+  })
+
+  const piggybackDTOs = piggybackRaw.map((p) => {
+    const displayOwner = p.owner?.name || p.owner?.email?.split('@')[0] || "行程夥伴"
+    return serialize(p, "viewer", { isShared: true, ownerName: displayOwner })
+  })
+
   return [
     ...owned.map((p) => serialize(p, "owner")),
-    ...shared.map((s) =>
-      serialize(s.place, s.role === "EDITOR" ? "editor" : "viewer")
-    ),
-    // 🚀 將呢批偷渡發放落地簽證嘅景點，冠以 "editor" 身份發送畀前端！
-    ...piggybackPlaces.map((p) => serialize(p, "editor")),
+    ...sharedDTOs,
+    ...piggybackDTOs,
   ]
 }
 
-/** Create a new place (always owned by the current user) or update an existing one. */
 export async function savePlace(input: SavePlaceInput): Promise<PlaceDTO> {
   const user = await requireUser()
 
@@ -212,17 +225,17 @@ export async function savePlace(input: SavePlaceInput): Promise<PlaceDTO> {
     openingHours: input.openingHours ?? [],
     country: input.country ?? null,
     province: input.province ?? null,
-    color: input.color ?? "#2563eb", // 🎨 4. 正式寫入 DB Payload！
+    color: input.color ?? "#2563eb", 
     googlePlaceId: input.googlePlaceId ?? null,
     customFields: (input.customFields ?? {}) as object,
   }
 
-  // Update path — only when the id refers to a real place the user can edit.
   if (input.id) {
     const resolved = await resolveAccess(input.id, user.id)
     if (resolved) {
+      // 雙重保險：如果前端駭客強行解除 [🔒唯讀] 按鈕發送 Request，在這裡當場被天雷劈死！
       if (resolved.access === "viewer") {
-        throw new Error("You only have view access to this place")
+        throw new Error("You only have view access to this place. Modification forbidden.")
       }
       const updated = await prisma.place.update({
         where: { id: input.id },
@@ -231,7 +244,6 @@ export async function savePlace(input: SavePlaceInput): Promise<PlaceDTO> {
       await notifyUsers(await affectedUsers(updated.id), "places")
       return serialize(updated, resolved.access)
     }
-    // Unknown id (e.g. a client-side temp id) falls through to create.
   }
 
   const created = await prisma.place.create({
@@ -241,13 +253,12 @@ export async function savePlace(input: SavePlaceInput): Promise<PlaceDTO> {
   return serialize(created, "owner")
 }
 
-/** Delete a place (owner or editor). */
 export async function deletePlace(id: string): Promise<void> {
   const user = await requireUser()
   const resolved = await resolveAccess(id, user.id)
   if (!resolved) throw new Error("Place not found")
   if (resolved.access === "viewer") {
-    throw new Error("You only have view access to this place")
+    throw new Error("You do not have permission to delete a shared place.")
   }
   const recipients = await affectedUsers(id)
   await prisma.place.delete({ where: { id } })

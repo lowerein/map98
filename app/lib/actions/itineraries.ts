@@ -1,3 +1,4 @@
+// lib/actions/itineraries.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -14,6 +15,10 @@ export type ItineraryDTO = {
   calendarEvents: unknown[]
   ownerId: string
   access: "owner" | "editor" | "viewer"
+
+  // 🔥 1. 補領護照章：讓前端 UI 認得出「別人的行程」與「擁有者是誰」
+  isShared?: boolean
+  ownerName?: string
 }
 
 export type CreateItineraryInput = {
@@ -32,7 +37,11 @@ export type UpdateItineraryInput = {
   calendarEvents?: unknown[]
 }
 
-function serialize(i: DbItinerary, access: ItineraryDTO["access"]): ItineraryDTO {
+function serialize(
+  i: DbItinerary, 
+  access: ItineraryDTO["access"],
+  meta?: { isShared?: boolean; ownerName?: string } // 🚀 2. 擴容接收 Meta 資訊
+): ItineraryDTO {
   return {
     id: i.id,
     name: i.name,
@@ -42,6 +51,8 @@ function serialize(i: DbItinerary, access: ItineraryDTO["access"]): ItineraryDTO
     calendarEvents: (i.calendarEvents as unknown[]) ?? [],
     ownerId: i.ownerId,
     access,
+    isShared: meta?.isShared ?? false,
+    ownerName: meta?.ownerName,
   }
 }
 
@@ -70,20 +81,38 @@ async function resolveAccess(
 
 export async function getItineraries(): Promise<ItineraryDTO[]> {
   const user = await requireUser()
+  
   const owned = await prisma.itinerary.findMany({
     where: { ownerId: user.id },
     orderBy: { createdAt: "asc" },
   })
-  const shared = await prisma.itineraryShare.findMany({
+
+  // 🚀 3. 關聯大解封：透過 ItineraryShare 順手撈出 itinerary.owner 的名字與 Email！
+  const sharedRaw = await prisma.itineraryShare.findMany({
     where: { userId: user.id },
-    include: { itinerary: true },
+    include: { 
+      itinerary: {
+        include: {
+          owner: { select: { name: true, email: true } }
+        }
+      } 
+    },
     orderBy: { createdAt: "asc" },
   })
+
+  // 完美封裝打標籤
+  const sharedDTOs = sharedRaw.map((s) => {
+    const iti = s.itinerary
+    const displayOwner = iti.owner?.name || iti.owner?.email?.split('@')[0] || "夥伴"
+    return serialize(iti, s.role === "EDITOR" ? "editor" : "viewer", {
+      isShared: true,
+      ownerName: displayOwner
+    })
+  })
+
   return [
     ...owned.map((i) => serialize(i, "owner")),
-    ...shared.map((s) =>
-      serialize(s.itinerary, s.role === "EDITOR" ? "editor" : "viewer")
-    ),
+    ...sharedDTOs,
   ]
 }
 
@@ -112,8 +141,10 @@ export async function updateItinerary(
   const user = await requireUser()
   const resolved = await resolveAccess(id, user.id)
   if (!resolved) throw new Error("Itinerary not found")
+  
+  // 🔥 純金打造的後端防線：只要是 viewer，天王老子來了也別想改動資料庫一根汗毛！
   if (resolved.access === "viewer") {
-    throw new Error("You only have view access to this itinerary")
+    throw new Error("You only have view access to this itinerary. Update rejected.")
   }
 
   const updated = await prisma.itinerary.update({
@@ -134,10 +165,6 @@ export async function updateItinerary(
   return serialize(updated, resolved.access)
 }
 
-/**
- * Owner deletes the itinerary entirely. A collaborator "deleting" simply
- * removes their own share (they leave the collaboration).
- */
 export async function deleteItinerary(id: string): Promise<void> {
   const user = await requireUser()
   const resolved = await resolveAccess(id, user.id)

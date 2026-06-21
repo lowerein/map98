@@ -20,7 +20,7 @@ interface OrganizeModeProps {
   onUpdateLiveEvents: (events: CalendarEvent[]) => void;
   onSaveAndClose: (updatedEvents: CalendarEvent[]) => void;
   onClose: () => void;
-  onEditPlace?: (place: Place) => void; // 🚀 確保介面接收編輯 Function
+  onEditPlace?: (place: Place) => void; 
 }
 
 export default function OrganizeMode({
@@ -35,7 +35,7 @@ export default function OrganizeMode({
   onUpdateLiveEvents,
   onSaveAndClose,
   onClose,
-  onEditPlace, // 🚀 1. 正式解構拎出嚟！
+  onEditPlace, 
 }: OrganizeModeProps) {
   const calendarRef = useRef<any>(null);
   const externalEventsRef = useRef<HTMLDivElement>(null);
@@ -43,6 +43,11 @@ export default function OrganizeMode({
   
   const activeItinerary =
     itineraries.find((i) => i.id === activeItineraryId) || itineraries[0];
+
+  // =====================================================================
+  // 🚀 絕殺 1：安全提煉出當前行程的唯讀身分，一棍打暈 TS 海關！
+  // =====================================================================
+  const isViewer = (activeItinerary as any)?.access === "viewer";
 
   const [localEvents, setLocalEvents] = useState<CalendarEvent[]>(
     activeItinerary.calendarEvents || [],
@@ -81,11 +86,10 @@ export default function OrganizeMode({
     validRangeEnd = d.toISOString().split("T")[0];
   }
 
-// 🚀 終極修正：實施「絕對日期錨點 (Static Date Anchor)」演算法
+  // 絕對日期錨點演算法
   const dailyPaths = useMemo(() => {
     if (!activeItinerary?.startDate) return [];
 
-    // 1. 嚴格根據 startDate 與 endDate，生成雷打不動的標準日子清單（例如：["2026-06-20", "2026-06-21"]）
     const tripDates: string[] = [];
     let curr = new Date(activeItinerary.startDate);
     const end = activeItinerary.endDate ? new Date(activeItinerary.endDate) : new Date(activeItinerary.startDate);
@@ -98,16 +102,12 @@ export default function OrganizeMode({
       curr.setDate(curr.getDate() + 1);
     }
 
-    // 2. 將 localEvents 按「本地時區字串」進行歸類（徹底幹掉 .toISOString() 的時區偷日黑洞）
     const eventsByDate: Record<string, CalendarEvent[]> = {};
     
     localEvents.forEach((ev) => {
       if (!ev.start) return;
-      
-      // ⚠️ 絕殺技：使用 new Date() 配合本地 API 提取年月日，保證香港早上7點依然係今日！
       const d = new Date(ev.start);
       const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      
       if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
       eventsByDate[dateKey].push(ev);
     });
@@ -116,23 +116,18 @@ export default function OrganizeMode({
       "#2563eb", "#10b981", "#f97316", "#8b5cf6", "#ec4899", "#06b6d4",
     ];
 
-    // 3. 嚴格映射 tripDates，Day 1 永遠雷打不動坐喺 idx 0！就算當日吉咗無行程，位子依然喺度！
     return tripDates.map((dateStr, idx) => {
       const dayEvents = eventsByDate[dateStr] || [];
-      
-      const sorted = dayEvents.sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
-      );
-
+      const sorted = dayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       const points = sorted
         .map((ev) => places.find((p) => p.id === ev.extendedProps?.placeId))
         .filter((p): p is Place => !!p && typeof p.lat === 'number' && typeof p.lng === 'number')
         .map((p) => ({ lat: p.lat, lng: p.lng }));
 
       return {
-        day: dateStr, // "YYYY-MM-DD"
-        dayLabel: `Day ${idx + 1}`, // 🚀 帶有順序的標籤
-        dateShort: `${dateStr.substring(5)}`, // 例如 "06-20"
+        day: dateStr, 
+        dayLabel: `Day ${idx + 1}`, 
+        dateShort: `${dateStr.substring(5)}`, 
         strokeColor: dayColors[idx % dayColors.length],
         points,
       };
@@ -186,8 +181,12 @@ export default function OrganizeMode({
     };
   }, []);
 
+  // =====================================================================
+  // 🚀 絕殺 2：側邊欄起重機物理斷電！
+  // 如果 isViewer 為 true，直接禁止建立 Draggable 實例，卡片當場失去浮力！
+  // =====================================================================
   useEffect(() => {
-    if (externalEventsRef.current) {
+    if (externalEventsRef.current && !isViewer) {
       const draggable = new Draggable(externalEventsRef.current, {
         itemSelector: ".fc-event",
         minDistance: 3,
@@ -201,7 +200,8 @@ export default function OrganizeMode({
       });
       return () => draggable.destroy();
     }
-  }, []);
+  }, [isViewer]);
+  // =====================================================================
 
   const updateLocalStateFromCalendar = () => {
     const calendarApi = calendarRef.current?.getApi();
@@ -265,7 +265,7 @@ export default function OrganizeMode({
           showList={showList} 
           listWidth={listWidth} 
           onFlyToPlace={handleFlyToPlace} 
-          onEditPlace={onEditPlace} // 🚀 2. 傳波畀左邊清單！
+          onEditPlace={onEditPlace} 
         />
         
         {showList && (
@@ -292,7 +292,10 @@ export default function OrganizeMode({
           setHoveredPlaceId={setHoveredPlaceId}
           hoveredPlaceId={hoveredPlaceId}
           onFlyToPlace={handleFlyToPlace}
-          onEditPlace={onEditPlace} // 🚀 3. 傳波畀中間日曆！
+          onEditPlace={onEditPlace} 
+          
+          // 🚀 絕殺 3：安全傳入 isViewer，紅線永不超生！
+          isViewer={isViewer}
         />
 
         {showMap && (

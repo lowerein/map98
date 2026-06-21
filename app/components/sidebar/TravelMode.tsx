@@ -41,6 +41,11 @@ export default function TravelMode({
   const dayColors = ["bg-blue-600", "bg-emerald-500", "bg-orange-500", "bg-purple-500", "bg-pink-500", "bg-cyan-500"];
   const ringColors = ["ring-blue-500", "ring-emerald-500", "ring-orange-500", "ring-purple-500", "ring-pink-500", "ring-cyan-500"];
 
+  // 安全轉型提取權限與標籤
+  const currentAccess = (itinerary as any)?.access || "owner";
+  const isShared = (itinerary as any)?.isShared || false;
+  const ownerName = (itinerary as any)?.ownerName || "協作者";
+
   const scrollToDay = (dayId: string) => {
     const phantomAnchor = document.getElementById(`travel-phantom-${dayId}`);
     if (phantomAnchor) {
@@ -56,28 +61,59 @@ export default function TravelMode({
   return (
     <div className="flex flex-col pb-10">
       
-      <div className="flex flex-col gap-1.5 mb-4 border-b border-gray-100 dark:border-gray-800 pb-4">
+      {/* 下拉選單區塊 */}
+      <div className="flex flex-col gap-1.5 mb-3 border-b border-gray-100 dark:border-gray-800 pb-4">
         <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider pl-1">📁 目前檢視行程</label>
         <div className="flex gap-2 w-full">
           <select
-            value={activeItineraryId} onChange={(e) => onSwitchItinerary(e.target.value)}
-            className="flex-1 text-xs md:text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm transition"
+            value={activeItineraryId} 
+            onChange={(e) => onSwitchItinerary(e.target.value)}
+            className="flex-1 text-xs md:text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-bold px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm transition truncate"
           >
-            {itineraries.map((iti) => (
-              <option key={iti.id} value={iti.id}>📁 {iti.name} {iti.startDate ? `(${iti.startDate})` : ""}</option>
-            ))}
+            {itineraries.map((iti: any) => {
+              // 🚀 絕殺 1：下拉選單 Remark 標註
+              const remark = iti.isShared ? ` [來自 ${iti.ownerName || "協作者"}]` : "";
+              return (
+                <option key={iti.id} value={iti.id}>
+                  📁 {iti.name} {iti.startDate ? `(${iti.startDate})` : ""}{remark}
+                </option>
+              );
+            })}
           </select>
-          <button
-            type="button" onClick={() => setIsShareModalOpen(true)}
-            className="px-3 py-2 rounded-xl text-xs font-black bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-sm transition-all flex items-center justify-center min-w-[40px]" title="分享與協作"
-          >🤝</button>
+          
+          {/* 🚀 絕殺 2：主權過濾！如果是 viewer，沒收分享按鈕 */}
+          {currentAccess !== "viewer" && (
+            <button
+              type="button" onClick={() => setIsShareModalOpen(true)}
+              className="px-3 py-2 rounded-xl text-xs font-black bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-sm transition-all flex items-center justify-center min-w-[40px] cursor-pointer shrink-0" title="分享與協作"
+            >🤝</button>
+          )}
         </div>
       </div>
 
+      {/* ===================================================================== */}
+      {/* 🚀 絕殺 3：頂部顯眼 View-Only 警告 Banner */}
+      {/* ===================================================================== */}
+      {currentAccess === "viewer" && (
+        <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 rounded-xl flex items-center justify-between text-xs text-purple-700 dark:text-purple-300 shadow-2xs animate-fadeIn select-none">
+          <div className="flex items-center gap-2 font-bold truncate pr-2">
+            <span className="text-sm">🔒</span>
+            <span className="truncate">這是由 {ownerName} 分享的行程（只限檢視）</span>
+          </div>
+          <span className="text-[10px] font-black bg-purple-200 dark:bg-purple-900 px-2 py-0.5 rounded uppercase tracking-wider shrink-0 text-purple-900 dark:text-purple-100">
+            View Only
+          </span>
+        </div>
+      )}
+      {/* ===================================================================== */}
+
       <div id="itinerary-pdf-capture-area" className="bg-white dark:bg-gray-900 transition-colors p-1 rounded-xl">
         
+        {/* 列印/匯出 PDF 時的靜態表頭 */}
         <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-800 hidden group-print:block">
-          <h2 className="font-black text-xl text-gray-900 dark:text-white">✈️ {itinerary.name}</h2>
+          <h2 className="font-black text-xl text-gray-900 dark:text-white">
+            ✈️ {itinerary.name} {isShared ? `(來自 ${ownerName})` : ""}
+          </h2>
           {itinerary.startDate && <p className="text-xs text-gray-400 mt-1">🗓️ 旅程日期：{itinerary.startDate} 至 {itinerary.endDate || "--"}</p>}
         </div>
 
@@ -86,7 +122,7 @@ export default function TravelMode({
             {itinerary.scheduleDays.map((day, idx) => (
               <button
                 key={`nav-${day.id}`} onClick={() => scrollToDay(day.id)}
-                className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shadow-sm flex items-center gap-1 shrink-0"
+                className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shadow-sm flex items-center gap-1 shrink-0 cursor-pointer"
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${dayColors[idx % dayColors.length]}`}></div>
                 Day {idx + 1}
@@ -145,13 +181,8 @@ export default function TravelMode({
                               isHovered ? "bg-blue-50/40 dark:bg-gray-800 border-blue-300 dark:border-gray-600" : "bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700"
                             }`}>
                               
-                              {/* ===================================================================== */}
-                              {/* 🔥 終極大師級單行 Header：
-                                  [📍 景點名稱 (Truncate)]  <--->  [ 09:00-11:30 ] [🗺️] [ ▼ Toggle掣 ] */}
-                              {/* ===================================================================== */}
                               <div className="flex justify-between items-center gap-2">
                                 
-                                {/* 左：景點名 */}
                                 <div 
                                   onClick={() => onPlaceClick?.(place)}
                                   className="font-bold text-sm md:text-base text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer flex items-center gap-1.5 truncate py-0.5" title="點擊在地圖定位"
@@ -160,7 +191,6 @@ export default function TravelMode({
                                   <span className="truncate leading-tight">{place.name}</span>
                                 </div>
 
-                                {/* 右：黃金三劍俠 */}
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {item.startTime && (
                                     <span className="text-[10px] md:text-[11px] font-black bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded shadow-inner select-none">
@@ -181,11 +211,10 @@ export default function TravelMode({
                                     </a>
                                   )}
 
-                                  {/* 🎯 被誤殺的本尊：純 Icon 展開按鈕 */}
                                   <button
                                     type="button"
                                     onClick={(e) => toggleCardExpand(item.id, e)}
-                                    className={`w-6 h-6 flex items-center justify-center rounded-md transition-all text-xs font-bold shadow-2xs active:scale-90 ${
+                                    className={`w-6 h-6 flex items-center justify-center rounded-md transition-all text-xs font-bold shadow-2xs active:scale-90 cursor-pointer ${
                                       isExpanded 
                                         ? "bg-blue-600 text-white dark:bg-blue-500" 
                                         : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -200,7 +229,6 @@ export default function TravelMode({
 
                               </div>
 
-                              {/* 櫃桶仔 Details */}
                               {isExpanded && (
                                 <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700/80 flex flex-col gap-2 text-xs animate-fadeIn">
                                   

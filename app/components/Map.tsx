@@ -11,6 +11,9 @@ import MapCanvas from "./MapCanvas";
 import OrganizeMode from "./OrganizeMode";
 import MapSearchBar from "./MapSearchBar";
 
+// 🚀 1. 總部引入分享中心
+import ShareModal from "./share/ShareModal";
+
 export default function Map() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -20,31 +23,31 @@ export default function Map() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
-  // 📐 尺寸狀態雙棲化：電腦睇 Width，手機睇 Height
   const [sidebarWidth, setSidebarWidth] = useState(450); 
-  const [sidebarHeight, setSidebarHeight] = useState(350); // 🚀 手機版縱向預設高度 (約佔畫面 45%)
+  const [sidebarHeight, setSidebarHeight] = useState(350); 
 
   const isResizing = useRef(false);
-  const isMobileResizing = useRef(false); // 🚀 追蹤手機端手指是否壓住拖動中
+  const isMobileResizing = useRef(false); 
 
   const [isMounted, setIsMounted] = useState(false);
   const [showRouteMenu, setShowRouteMenu] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<string>("places");
+const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || trip.sidebarSelectedPlace?.isShared;
+
+
+  // 🚀 2. 總電房宣告：景點庫專用分享中心的開關狀態
+  const [isLibShareOpen, setIsLibShareOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true); 
 
-    // 🚀 全維度拖拽引擎：同時兼容 Desktop 滑鼠與 Mobile 手指
     const handleMove = (clientY: number, clientX: number) => {
-      // 1. 電腦端橫向拉伸
       if (isResizing.current) { 
         if (clientX >= 280 && clientX <= 600) setSidebarWidth(clientX); 
       }
-      // 2. 手機端縱向拉伸 (Bottom Sheet)
       if (isMobileResizing.current) {
         const windowH = window.innerHeight;
-        const newH = windowH - clientY; // 從底部計起嘅高度
-        // 安全範圍鎖定：最矮 80px，最高不超過螢幕總高的 85%
+        const newH = windowH - clientY; 
         if (newH >= 80 && newH <= windowH * 0.85) {
           setSidebarHeight(newH);
         }
@@ -78,7 +81,6 @@ export default function Map() {
 
   const startResize = (e: React.MouseEvent) => { e.preventDefault(); isResizing.current = true; document.body.style.cursor = "col-resize"; };
   
-  // 🚀 手機端專用起動掣
   const startMobileResize = () => {
     isMobileResizing.current = true;
     document.body.style.cursor = "row-resize";
@@ -105,7 +107,6 @@ export default function Map() {
       ) : (
         <div className="relative w-full h-[calc(100vh-56px)] flex flex-col-reverse md:flex-row overflow-hidden bg-gray-100 dark:bg-gray-950 transition-colors">
           
-          {/* 🚀 容器動態樣式大解放：電腦食 Width，手機食 Height */}
           <div 
             style={{ 
               width: isMounted && window.innerWidth >= 768 ? (isSidebarOpen ? `${sidebarWidth}px` : "0px") : "100%",
@@ -113,47 +114,34 @@ export default function Map() {
             }} 
             className="relative z-20 flex flex-col transition-all md:transition-none duration-300 ease-out bg-white dark:bg-gray-900 shadow-2xl border-t md:border-t-0 md:border-r border-gray-200 dark:border-gray-800 w-full md:w-auto"
           >
-            {/* 電腦版側邊開關箭頭 */}
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex absolute top-1/2 -right-6 -translate-y-1/2 w-6 h-16 bg-white dark:bg-gray-800 border border-l-0 border-gray-200 dark:border-gray-700 rounded-r-md shadow-md items-center justify-center text-gray-500 dark:text-gray-400 z-30">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex absolute top-1/2 -right-6 -translate-y-1/2 w-6 h-16 bg-white dark:bg-gray-800 border border-l-0 border-gray-200 dark:border-gray-700 rounded-r-md shadow-md items-center justify-center text-gray-500 dark:text-gray-400 z-30 cursor-pointer">
               {isSidebarOpen ? "◀" : "▶"}
             </button>
 
-            {/* ===================================================================== */}
-            {/* 📱 手機版現代感膠囊拖拽條 (Bottom Sheet Drag Handle)
-                按住可順滑上下推拉，雙擊可一鍵收起/展開 */}
-            {/* ===================================================================== */}
-{/* ===================================================================== */}
-            {/* 📱 手機版現代感膠囊拖拽條 + Windows 式「一橫 (-)」最小化按鈕 */}
-            {/* ===================================================================== */}
             <div 
               onTouchStart={startMobileResize}
               onMouseDown={startMobileResize}
-              onDoubleClick={() => setIsSidebarOpen(!isSidebarOpen)} // 保留雙擊彩蛋給老手
+              onDoubleClick={() => setIsSidebarOpen(!isSidebarOpen)} 
               className="md:hidden w-full h-12 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 cursor-row-resize z-30 flex-shrink-0 select-none relative group"
             >
-              {/* 左側：顯示當前櫃桶仔屬性，令版面視覺平衡 */}
               <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                 {sidebarTab === "places" ? "📍 景點庫" : "📱 行程表"}
               </span>
 
-              {/* 中間：絕對數學居中的 iOS / Android 級拖拉小橫線 */}
               <div className="absolute left-1/2 -translate-x-1/2 w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full transition-colors group-hover:bg-gray-400" />
 
-              {/* 右側：Windows 式「一橫 (-)」最小化按鈕 / 展開按鈕 */}
               <button
                 type="button"
                 onClick={(e) => {
-                  e.stopPropagation(); // 👈 絕殺關鍵：截斷觸控事件，避免撳 Button 誤觸發 startMobileResize 搞到畫面卡死
+                  e.stopPropagation(); 
                   setIsSidebarOpen(!isSidebarOpen);
                 }}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200/70 dark:bg-gray-800/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition active:scale-90 shadow-2xs"
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200/70 dark:bg-gray-800/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition active:scale-90 shadow-2xs cursor-pointer"
                 title={isSidebarOpen ? "最小化面板" : "展開面板"}
               >
                 {isSidebarOpen ? (
-                  // Windows Minimize Icon (乾淨的一橫)
                   <span className="w-2.5 h-0.5 bg-current rounded-sm" />
                 ) : (
-                  // 縮起時，變成精緻的向上小箭頭
                   <span className="text-[10px] font-black">▲</span>
                 )}
               </button>
@@ -181,6 +169,11 @@ export default function Map() {
                     setHoveredPlaceId={trip.setHoveredPlaceId}
                     activeTab={sidebarTab}
                     onTabChange={setSidebarTab}
+
+                    // =====================================================================
+                    // 🚀 3. 靈魂接通：將開啟「景點庫分享中心」的發射按鈕遞給 Sidebar！
+                    // =====================================================================
+                    onOpenShareModal={() => setIsLibShareOpen(true)}
                   />
                 </div>
               </div>
@@ -206,7 +199,7 @@ export default function Map() {
                   <div className="ml-3 mt-4 flex flex-col items-start">
                     <button 
                       type="button" onClick={() => setShowRouteMenu(!showRouteMenu)}
-                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all" title="切換路線選單"
+                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all cursor-pointer" title="切換路線選單"
                     >🗺️</button>
                     <div className={`${showRouteMenu ? "flex animate-slideDown" : "hidden"} md:flex flex-col gap-1 mt-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-3 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-h-[45vh] md:max-h-[60vh] overflow-y-auto custom-scrollbar min-w-[130px]`}>
                       <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 border-b border-gray-100 dark:border-gray-800 pb-1 mb-1"><span>🗺️ 顯示路線</span></div>
@@ -246,6 +239,7 @@ export default function Map() {
                     googleMapsUrl={trip.selectedLocation.googleMapsUrl} 
                     placeColor={trip.placeColor}
                     setPlaceColor={trip.setPlaceColor}
+                    isViewer={isThisPlaceReadonly}
                   />
                 </InfoWindow>
               )}
@@ -257,44 +251,36 @@ export default function Map() {
       {/* Organize Mode 全域表單彈窗 */}
       {isOrganizeMode && trip.editingPlaceId && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-          <div 
-            onClick={(e) => e.stopPropagation()} 
-            className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp"
-          >
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">✏️</span>
-                <h3 className="font-black text-base text-gray-900 dark:text-white tracking-wide">編輯景點資料</h3>
-              </div>
-              <button 
-                type="button" 
-                onClick={trip.handleCancel}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 font-bold text-sm transition"
-              >✕</button>
+              <div className="flex items-center gap-2"><span className="text-xl">✏️</span><h3 className="font-black text-base text-gray-900 dark:text-white tracking-wide">編輯景點資料</h3></div>
+              <button type="button" onClick={trip.handleCancel} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-600 dark:text-gray-300 font-bold text-sm transition cursor-pointer">✕</button>
             </div>
-
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col [&_form]:w-full [&_form]:max-w-none [&_input[type=text]]:w-full [&_input[type=tel]]:w-full [&_input[type=number]]:w-full [&_select]:w-full [&_textarea]:w-full">
               <AddPlaceForm 
                 placeName={trip.placeName} setPlaceName={trip.setPlaceName} 
                 placeAddress={trip.placeAddress} setPlaceAddress={trip.setPlaceAddress}
                 placePhone={trip.placePhone} setPlacePhone={trip.setPlacePhone}
-                placeHours={trip.placeHours}
-                activeFieldsConfig={trip.activeFieldsConfig}
-                dynamicFieldValues={trip.dynamicFieldValues}
-                setDynamicFieldValues={trip.setDynamicFieldValues}
-                onSubmit={(e, finalDynamicValues) => {
-                  trip.handleSavePlace(e, finalDynamicValues);
-                }} 
-                onCancel={trip.handleCancel} 
-                isEditing={true} 
+                placeHours={trip.placeHours} activeFieldsConfig={trip.activeFieldsConfig}
+                dynamicFieldValues={trip.dynamicFieldValues} setDynamicFieldValues={trip.setDynamicFieldValues}
+                onSubmit={(e, finalDynamicValues) => { trip.handleSavePlace(e, finalDynamicValues); }} 
+                onCancel={trip.handleCancel} isEditing={true} 
                 googleMapsUrl={trip.selectedLocation?.googleMapsUrl || ""} 
-                placeColor={trip.placeColor}
-                setPlaceColor={trip.setPlaceColor}
+                placeColor={trip.placeColor} setPlaceColor={trip.setPlaceColor}
               />
             </div>
           </div>
         </div>
       )}
+
+      {/* ===================================================================== */}
+      {/* 🚀 4. 全域景點庫專用分享中心肉身掛載點 */}
+      {/* ===================================================================== */}
+      <ShareModal
+        mode="library"
+        isOpen={isLibShareOpen}
+        onClose={() => setIsLibShareOpen(false)}
+      />
 
     </APIProvider>
   );

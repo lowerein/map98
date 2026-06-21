@@ -20,17 +20,19 @@ interface SidebarProps {
   onSwitchItinerary: (id: string) => void;
   hoveredPlaceId?: string | null;
   setHoveredPlaceId?: (id: string | null) => void; 
+  
+  // 🚀 1. 快遞中轉插座：接收由老豆遞落嚟嘅全庫共享門匙
+  onOpenShareModal?: () => void; 
+
   [key: string]: any; 
 
-  activeTab?: string; // 👈 接收老豆 Map.tsx 的視角狀態
-  onTabChange?: (tab: string) => void; // 👈 向上通報的對講機
+  activeTab?: string; 
+  onTabChange?: (tab: string) => void; 
 }
 
 export default function Sidebar(props: SidebarProps) {
-  const { hoveredPlaceId, setHoveredPlaceId, activeTab: propActiveTab, onTabChange, ...restProps } = props;
+  const { hoveredPlaceId, setHoveredPlaceId, activeTab: propActiveTab, onTabChange, onOpenShareModal, ...restProps } = props;
 
-  // 🚀 核心絕殺：徹底刪除本地 useState！
-  // 統一讀取老豆 Map.tsx 賦予的 propActiveTab（保底預設為 "places"）
   const currentTab = (propActiveTab as "places" | "travel") || "places";
 
   const [isMounted, setIsMounted] = useState(false);
@@ -38,7 +40,6 @@ export default function Sidebar(props: SidebarProps) {
   
   const activeItinerary = props.itineraries?.find(i => i.id === props.activeItineraryId) || props.itineraries?.[0] || null;
 
-  // 按鈕點擊時，直接透過對講機命令老豆改 State
   const handleTabClick = (targetTab: "places" | "travel") => {
     onTabChange?.(targetTab);
   };
@@ -51,13 +52,13 @@ export default function Sidebar(props: SidebarProps) {
         <div className="px-4 pb-0">
           <div className="flex gap-4 text-sm font-medium overflow-x-auto hide-scrollbar">
             <button 
-              onClick={() => handleTabClick("places")} // 👈 呼叫老豆！
+              onClick={() => handleTabClick("places")}
               className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${currentTab === "places" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
             >
               📍 地點 ({props.places?.length || 0})
             </button>
             <button 
-              onClick={() => handleTabClick("travel")} // 👈 呼叫老豆！
+              onClick={() => handleTabClick("travel")}
               className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${currentTab === "travel" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
             >
               📱 旅途 ({props.itineraries?.length || 0})
@@ -76,6 +77,9 @@ export default function Sidebar(props: SidebarProps) {
             onEditPlace={props.onEditPlace} 
             hoveredPlaceId={hoveredPlaceId}
             onHoverPlace={setHoveredPlaceId} 
+
+            // 🚀 2. 靈魂接力：把老豆派下來的門匙交給清單！
+            onOpenShareModal={onOpenShareModal}
           />
         )}
         

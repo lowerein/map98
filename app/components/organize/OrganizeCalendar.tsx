@@ -17,12 +17,12 @@ interface OrganizeCalendarProps {
   updateLocalStateFromCalendar: () => void;
   showList: boolean;
   hoveredPlaceId: string | null;
-
-  // 🚀 1. 介面插座：準備接收由老豆 OrganizeMode 傳落嚟嘅發射器
   setHoveredPlaceId: (id: string | null) => void;
-
   onFlyToPlace: (place: Place) => void;
   onEditPlace?: (place: Place) => void;
+
+  // 🚀 1. 權限接收器：接收老豆傳來的「唯讀身分證」
+  isViewer?: boolean; 
 }
 
 export default function OrganizeCalendar({
@@ -36,17 +36,17 @@ export default function OrganizeCalendar({
   updateLocalStateFromCalendar,
   showList,
   hoveredPlaceId,
-  setHoveredPlaceId, // 🚀 2. 正式拆出發射器
+  setHoveredPlaceId, 
   onFlyToPlace,
   onEditPlace,
+  isViewer = false, // 🚀 保底預設為 false（可編輯）
 }: OrganizeCalendarProps) {
   const [isExtendedView, setIsExtendedView] = useState(false);
   const hasDateRange = startDate && validRangeEnd;
 
-  // 🚀 核心調色盤對接：將 localEvents 注入景點自訂顏色
   const coloredEvents = localEvents.map((ev) => {
     const place = places.find((p) => p.id === ev.extendedProps?.placeId);
-    const customColor = place?.color || "#2563eb"; // 預設 Google 皇家藍
+    const customColor = place?.color || "#2563eb"; 
 
     return {
       ...ev,
@@ -105,16 +105,21 @@ export default function OrganizeCalendar({
           slotMinTime={isExtendedView ? "00:00:00" : "06:00:00"}
           slotMaxTime="24:00:00"
           allDaySlot={false}
-          editable={true}
-          droppable={true}
+
+          // =====================================================================
+          // 🚀 2. 物理封印結界：只要是 isViewer，把所有交互權利當場閹割！
+          // =====================================================================
+          editable={!isViewer}
+          droppable={!isViewer}
+          eventStartEditable={!isViewer}
+          eventDurationEditable={!isViewer}
+          // =====================================================================
+
           events={coloredEvents}
           eventReceive={updateLocalStateFromCalendar}
           eventDrop={updateLocalStateFromCalendar}
           eventResize={updateLocalStateFromCalendar}
-          // =====================================================================
-          // 🚀 3. 核心靈魂對接：監聽 FullCalendar 原生嘅滑鼠移入移出事件！
-          // 當用家隻 mouse 射入去日曆方塊，立刻提煉出 placeId 送上天頂大腦！
-          // =====================================================================
+
           eventMouseEnter={(arg) => {
             const placeId = arg.event.extendedProps?.placeId;
             if (placeId) setHoveredPlaceId(placeId);
@@ -122,7 +127,6 @@ export default function OrganizeCalendar({
           eventMouseLeave={() => {
             setHoveredPlaceId(null);
           }}
-          // =====================================================================
 
           dayHeaderClassNames={(arg) => {
             const d = arg.date;
@@ -131,14 +135,16 @@ export default function OrganizeCalendar({
               return "!bg-emerald-50/80 dark:!bg-emerald-900/30 !text-emerald-700 dark:!text-emerald-400 font-black border-t-4 border-t-emerald-500";
             return "";
           }}
+
           eventClick={(info) => {
             const place = places.find(
               (p) => p.id === info.event.extendedProps?.placeId,
             );
             if (place) setSelectedPlace(place);
           }}
+
           eventDragStop={(info) => {
-            if (!showList) return;
+            if (isViewer || !showList) return; // 雙重保險
             const zoneEl = document.getElementById("external-events-zone");
             if (!zoneEl) return;
             const rect = zoneEl.getBoundingClientRect();
@@ -152,26 +158,28 @@ export default function OrganizeCalendar({
               setTimeout(updateLocalStateFromCalendar, 50);
             }
           }}
+
           eventContent={(eventInfo) => {
             const placeId = eventInfo.event.extendedProps?.placeId;
             const isEventSelected = selectedPlace?.id === placeId;
             const isEventHovered = hoveredPlaceId === placeId;
             const place = places.find((p) => p.id === placeId);
+            const customBgColor = eventInfo.event.backgroundColor || "#2563eb";
 
             return (
               <div
-                // 🚀 1. 基礎加入 duration-200 令放大縮細有 Q 彈呼吸感
-                className={`w-full h-full p-1 text-[11px] leading-tight truncate text-white font-semibold cursor-pointer flex items-center justify-between rounded transition-all duration-200 relative group/ev ${
+                // 🔥 物理烙印背景色，對抗 PDF 透明隱藏 Bug
+                style={{ backgroundColor: customBgColor }}
+                className={`w-full h-full p-1 text-[11px] leading-tight text-white font-semibold cursor-pointer flex items-center justify-between rounded transition-all duration-200 relative group/ev ${
                   isEventSelected
-                    ? // 🔥 頂級高亮配方：[Z軸霸權 z-40] + [物理暴漲 1.035倍] + [雙層高對比外框 (Offset+Ring)] + [高光溢出]
-                      "z-60 ring-4 ring-offset-2 ring-offset-white dark:ring-offset-gray-900 ring-amber-600 dark:ring-amber-400 font-black shadow-xl brightness-110 !border-transparent"
+                    ? "z-60 ring-4 ring-offset-2 ring-offset-white dark:ring-offset-gray-900 ring-amber-600 dark:ring-amber-400 font-black shadow-xl brightness-110 !border-transparent scale-[1.035]"
                     : isEventHovered
-                      ? "!bg-amber-500 ring-4 ring-amber-400 font-black scale-[1.015] z-30 !text-gray-900 shadow-md"
-                      : "bg-transparent hover:brightness-110"
+                      ? "ring-4 ring-amber-400 font-black scale-[1.015] z-30 !text-gray-900 shadow-md !bg-amber-500"
+                      : "hover:brightness-110"
                 }`}
               >
-                <span className="truncate pr-11">
-                  📍 {eventInfo.event.title}
+                <span className="truncate pr-11 block">
+                  {isEventSelected ? "🎯 " : "📍 "}{eventInfo.event.title}
                 </span>
 
                 {place && (
@@ -179,24 +187,29 @@ export default function OrganizeCalendar({
                     onMouseDown={(e) => e.stopPropagation()}
                     className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/ev:opacity-100 z-40 bg-black/25 dark:bg-white/25 p-0.5 rounded backdrop-blur-xs transition-opacity"
                   >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditPlace?.(place);
-                      }}
-                      className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 rounded hover:bg-amber-500 hover:text-white transition shadow-sm text-[9px]"
-                      title="編輯此景點"
-                    >
-                      ✏️
-                    </button>
+                    {/* ===================================================================== */}
+                    {/* 🚀 3. 唯讀淨化：如果是 Viewer，沒收鉛筆編輯按鈕，只准飛針！ */}
+                    {/* ===================================================================== */}
+                    {!isViewer && onEditPlace && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditPlace(place);
+                        }}
+                        className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 rounded hover:bg-amber-500 hover:text-white transition shadow-sm text-[9px] cursor-pointer"
+                        title="編輯此景點"
+                      >
+                        ✏️
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onFlyToPlace(place);
                       }}
-                      className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-500 hover:text-white transition shadow-sm text-[9px]"
+                      className="w-4 h-4 flex items-center justify-center bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-500 hover:text-white transition shadow-sm text-[9px] cursor-pointer"
                       title="飛去地圖定位"
                     >
                       🎯

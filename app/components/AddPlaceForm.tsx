@@ -25,7 +25,6 @@ interface AddPlaceFormProps {
   setPlacePhone: (phone: string) => void;
   placeHours: string[];
 
-  // 🚀 新增：接收顏色狀態與設定器
   placeColor?: string;
   setPlaceColor?: (color: string) => void;
 
@@ -42,6 +41,9 @@ interface AddPlaceFormProps {
   onCancel: () => void;
   isEditing: boolean;
   googleMapsUrl?: string;
+
+  // 🚀 1. 新增權限插座：接收唯讀訪客身分證
+  isViewer?: boolean; 
 }
 
 export default function AddPlaceForm({
@@ -52,7 +54,7 @@ export default function AddPlaceForm({
   placePhone,
   setPlacePhone,
   placeHours,
-  placeColor = "#2563eb", // 預設藍色保底
+  placeColor = "#2563eb", 
   setPlaceColor,
   activeFieldsConfig = [],
   dynamicFieldValues = {},
@@ -61,9 +63,76 @@ export default function AddPlaceForm({
   onCancel,
   isEditing,
   googleMapsUrl,
+  isViewer = false, // 🚀 保底預設為可編輯
 }: AddPlaceFormProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({});
+
+  // =====================================================================
+  // 🛡️ 2. 絕對唯讀石化結界：如果是 Viewer，直接沒收 Input 表單！
+  // 吐出一張極致優雅、泛著尊貴紫光、帶有 Google Maps 導航掣的「地標卡片」！
+  // =====================================================================
+  if (isViewer) {
+    return (
+      <div className="p-2 flex flex-col gap-3 min-w-[240px] max-w-xs select-none animate-fadeIn text-gray-800 dark:text-gray-100">
+        <div className="flex items-center justify-between border-b border-purple-100 dark:border-purple-900/50 pb-2.5">
+          <div className="flex items-center gap-1.5 truncate pr-2">
+            <span className="text-base shrink-0">📍</span>
+            <span className="font-black text-sm truncate">{placeName}</span>
+          </div>
+          <span className="text-[9px] font-black bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-wider shrink-0 select-none">
+            🔒 唯讀地標
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-2 text-xs text-gray-600 dark:text-gray-300 pl-1 py-1">
+          {placeAddress ? (
+            <div className="flex items-start gap-1.5">
+              <span className="text-gray-400 shrink-0">🏠</span>
+              <span className="break-words leading-tight">{placeAddress}</span>
+            </div>
+          ) : (
+            <div className="text-gray-400 italic">🏠 未提供地址</div>
+          )}
+
+          {placePhone ? (
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-gray-400 shrink-0">📞</span>
+              <span className="truncate">{placePhone}</span>
+            </div>
+          ) : (
+            <div className="text-gray-400 italic">📞 未提供電話號碼</div>
+          )}
+        </div>
+
+        {placeHours.length > 0 && (
+          <div className="bg-gray-50 dark:bg-gray-800/40 p-2 rounded-lg border border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400 space-y-0.5 max-h-24 overflow-y-auto custom-scrollbar">
+            <span className="font-bold text-[10px] text-gray-400 block mb-1">營業時間：</span>
+            {placeHours.map((h, i) => <div key={i}>{h}</div>)}
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between mt-1">
+          {googleMapsUrl ? (
+            <a
+              href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
+              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 active:scale-95 transition-transform"
+            >
+              <span>🗺️</span> 在 Google Maps 開啟
+            </a>
+          ) : <span />}
+
+          <button
+            type="button" onClick={onCancel}
+            className="px-3.5 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold rounded-lg transition active:scale-95 cursor-pointer shrink-0"
+          >
+            關閉
+          </button>
+        </div>
+      </div>
+    );
+  }
+  // =====================================================================
 
   const handleDynamicChange = (key: string, val: any) => {
     if (setDynamicFieldValues)
@@ -109,10 +178,9 @@ export default function AddPlaceForm({
         html.dark .gm-style-iw-d::-webkit-scrollbar-track-piece { background: #111827 !important; }
       `}</style>
 
-      {/* 🚀 將 w-[280px] 解封為 w-full，適應地圖氣泡與全域彈窗雙棲 */}
       <form
         onSubmit={handleSubmit}
-        className="p-1 w-full max-h-[70vh] overflow-y-auto flex flex-col gap-3 custom-scrollbar text-gray-800 dark:text-gray-100 pr-2"
+        className="p-1 w-full max-h-[70vh] overflow-y-auto flex flex-col gap-3 custom-scrollbar text-gray-800 dark:text-gray-100 pr-2 animate-fadeIn"
       >
         <h3 className="font-bold text-base border-b border-gray-200 dark:border-gray-800 pb-2">
           {isEditing ? "✏️ 編輯地點" : "📍 新增地點"}
@@ -173,9 +241,6 @@ export default function AddPlaceForm({
           </div>
         )}
 
-        {/* ========================================== */}
-        {/* 🎨 核心：旅行標籤調色盤區塊 */}
-        {/* ========================================== */}
         <div>
           <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">
             景點標籤顏色
@@ -189,7 +254,7 @@ export default function AddPlaceForm({
                   type="button"
                   onClick={() => setPlaceColor?.(item.hex)}
                   style={{ backgroundColor: item.hex }}
-                  className={`w-6 h-6 rounded-full shadow-xs transition-all flex items-center justify-center text-white text-xs font-black select-none ${
+                  className={`w-6 h-6 rounded-full shadow-xs transition-all flex items-center justify-center text-white text-xs font-black select-none cursor-pointer ${
                     isSelected
                       ? "ring-2 ring-offset-1 ring-gray-800 dark:ring-white scale-110"
                       : "opacity-60 hover:opacity-100"
@@ -203,7 +268,6 @@ export default function AddPlaceForm({
           </div>
         </div>
 
-        {/* 動態擴充欄位 */}
         {activeFieldsConfig.filter((f) => f.isActive).length > 0 && (
           <div className="border-t border-gray-200 dark:border-gray-800 pt-3 mt-1">
             <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">
@@ -346,14 +410,14 @@ export default function AddPlaceForm({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 py-1.5 rounded text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+            className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 py-1.5 rounded text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer"
           >
             取消
           </button>
           <button
             type="submit"
             disabled={isUploading}
-            className="flex-1 bg-blue-600 dark:bg-blue-500 text-white py-1.5 rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-1"
+            className="flex-1 bg-blue-600 dark:bg-blue-500 text-white py-1.5 rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-1 cursor-pointer"
           >
             {isUploading ? (
               <>

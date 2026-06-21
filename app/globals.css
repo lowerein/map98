@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
+/* 🚀 Tailwind v4 專用：一竿子打盡，啟動 Class 版 Dark Mode */
+@variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  color-scheme: dark; /* 🚀 呢句好重要，Google Maps 係靠呢句知你要變色 */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark Mode 全域底色 */
+.dark body {
+  background-color: #111827; /* Tailwind gray-900 */
+  color: #f3f4f6;
+  color-scheme: dark;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* 🚀 完美修復 FullCalendar 喺 Dark Mode 嘅白光彈問題 */
+.dark .fc {
+  --fc-page-bg-color: #111827;
+  --fc-neutral-bg-color: #1f2937;
+  --fc-neutral-text-color: #f3f4f6;
+  --fc-border-color: #374151;
+  --fc-button-text-color: #f3f4f6;
+  --fc-button-bg-color: #1f2937;
+  --fc-button-border-color: #374151;
+  --fc-button-hover-bg-color: #374151;
+  --fc-button-hover-border-color: #4b5563;
+  --fc-button-active-bg-color: #4b5563;
+  --fc-button-active-border-color: #6b7280;
+  --fc-today-bg-color: rgba(59, 130, 246, 0.15); /* 輕微藍色 Highlight 今日 */
+}
+
+.dark .fc-theme-standard td, 
+.dark .fc-theme-standard th, 
+.dark .fc-theme-standard .fc-scrollgrid {
+  border-color: #374151; /* 柔和嘅深色邊框 */
+}
+
+.dark .fc-col-header-cell {
+  background-color: #1f2937; /* 日曆頂部星期列底色 */
 }

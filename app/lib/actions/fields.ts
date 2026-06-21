@@ -8,7 +8,7 @@ export type FieldDTO = {
   id: string
   key: string
   label: string
-  type: "text" | "number" | "checkbox" | "file" | "image" | "date"
+  type: "text" | "number" | "checkbox" | "file" | "image" | "date" |"textarea"
   isRequired: boolean
   isActive: boolean
   isSystemDefault: boolean

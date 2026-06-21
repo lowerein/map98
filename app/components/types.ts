@@ -3,7 +3,7 @@
 export type CustomField = {
   id: string;
   name: string;
-  type: 'text' | 'date' | 'checkbox';
+  type: "text" | "number" | "checkbox" | "file" | "image" | "date" |"textarea";
   value: string | boolean;
 };
 

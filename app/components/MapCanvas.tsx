@@ -137,6 +137,7 @@ export default function MapCanvas({
 
       {savedPlaces.map((place) => {
         const isHovered = hoveredPlaceId === place.id; 
+        const pinColor = place.color || "#2563eb";
         return (
           <AdvancedMarker
             key={place.id}
@@ -147,8 +148,8 @@ export default function MapCanvas({
             zIndex={isHovered ? 110 : 1} 
           >
             <Pin
-              background={isHovered ? "#f59e0b" : (isDarkMode ? "#3b82f6" : "#2563eb")}
-              borderColor={isHovered ? "#b45309" : (isDarkMode ? "#1d4ed8" : "#1e40af")}
+              background={isHovered ? "#f59e0b" : (isDarkMode ? pinColor : pinColor)}
+              borderColor={isHovered ? "#b45309" : (isDarkMode ? pinColor : pinColor)}
               glyphColor={"#ffffff"}
               scale={isHovered ? 1.25 : 1} 
             />

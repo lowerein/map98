@@ -19,20 +19,29 @@ interface SidebarProps {
   onRenameItinerary: (id: string, newName: string) => void;
   onSwitchItinerary: (id: string) => void;
   hoveredPlaceId?: string | null;
-  setHoveredPlaceId?: (id: string | null) => void; // 🚀 確保 Map 傳入呢個名
+  setHoveredPlaceId?: (id: string | null) => void; 
   [key: string]: any; 
+
+  activeTab?: string; // 👈 接收老豆 Map.tsx 的視角狀態
+  onTabChange?: (tab: string) => void; // 👈 向上通報的對講機
 }
 
 export default function Sidebar(props: SidebarProps) {
-  // 🚀 核心優化：直接將 props 解構，攞出大腦傳落嚟嘅核心 Hover 變數
-  const { hoveredPlaceId, setHoveredPlaceId, ...restProps } = props;
+  const { hoveredPlaceId, setHoveredPlaceId, activeTab: propActiveTab, onTabChange, ...restProps } = props;
 
-  const [activeTab, setActiveTab] = useState<"places" | "travel">("places"); 
+  // 🚀 核心絕殺：徹底刪除本地 useState！
+  // 統一讀取老豆 Map.tsx 賦予的 propActiveTab（保底預設為 "places"）
+  const currentTab = (propActiveTab as "places" | "travel") || "places";
+
   const [isMounted, setIsMounted] = useState(false);
-
   useEffect(() => { setIsMounted(true); }, []);
   
   const activeItinerary = props.itineraries?.find(i => i.id === props.activeItineraryId) || props.itineraries?.[0] || null;
+
+  // 按鈕點擊時，直接透過對講機命令老豆改 State
+  const handleTabClick = (targetTab: "places" | "travel") => {
+    onTabChange?.(targetTab);
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-white dark:bg-gray-900 transition-colors duration-200">
@@ -42,14 +51,14 @@ export default function Sidebar(props: SidebarProps) {
         <div className="px-4 pb-0">
           <div className="flex gap-4 text-sm font-medium overflow-x-auto hide-scrollbar">
             <button 
-              onClick={() => setActiveTab("places")} 
-              className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${activeTab === "places" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
+              onClick={() => handleTabClick("places")} // 👈 呼叫老豆！
+              className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${currentTab === "places" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
             >
               📍 地點 ({props.places?.length || 0})
             </button>
             <button 
-              onClick={() => setActiveTab("travel")} 
-              className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${activeTab === "travel" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
+              onClick={() => handleTabClick("travel")} // 👈 呼叫老豆！
+              className={`pb-2 border-b-2 transition whitespace-nowrap font-bold ${currentTab === "travel" ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400" : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
             >
               📱 旅途 ({props.itineraries?.length || 0})
             </button>
@@ -59,20 +68,18 @@ export default function Sidebar(props: SidebarProps) {
 
       {/* 上半部：清單區域 */}
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-white dark:bg-gray-900 transition-colors relative">
-        {activeTab === "places" && (
+        {currentTab === "places" && (
           <PlaceLibrary 
             places={props.places} 
             onPlaceClick={props.onPlaceClick} 
             onDeletePlace={props.onDeletePlace} 
             onEditPlace={props.onEditPlace} 
-            
-            // 🚀 終極對接：將剛剛解構出嚟、來自大腦嘅數值同函數，毫無遺漏地注入畀 PlaceLibrary
             hoveredPlaceId={hoveredPlaceId}
             onHoverPlace={setHoveredPlaceId} 
           />
         )}
         
-        {activeTab === "travel" && isMounted && (
+        {currentTab === "travel" && isMounted && (
           activeItinerary ? (
             <TravelMode 
               itinerary={activeItinerary} 
@@ -80,8 +87,6 @@ export default function Sidebar(props: SidebarProps) {
               activeItineraryId={props.activeItineraryId}
               onSwitchItinerary={props.onSwitchItinerary}
               places={props.places} 
-              
-              // 🚀 旅途 Tab 都一齊完美對接
               hoveredPlaceId={hoveredPlaceId}
               onHoverPlace={setHoveredPlaceId}
               onPlaceClick={props.onPlaceClick}
@@ -96,8 +101,8 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      {/* 下半部：使用重構後的 PlaceDetailsPanel 組件 */}
-      {activeTab === "places" && (
+      {/* 下半部：PlaceDetailsPanel */}
+      {currentTab === "places" && (
         <PlaceDetailsPanel selectedPlace={props.selectedPlace} />
       )}
 

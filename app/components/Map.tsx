@@ -25,6 +25,10 @@ export default function Map() {
 
   const [showRouteMenu, setShowRouteMenu] = useState(false);
 
+  // 🚀 1. 新增心靈感應天線：記錄目前 Sidebar 到底睇緊「景點庫」定係「行程路線」
+  // 預設一入嚟當佢睇緊景點庫 ("places")
+  const [sidebarTab, setSidebarTab] = useState<string>("places");
+
   useEffect(() => {
     setIsMounted(true); 
     const handleMouseMove = (e: MouseEvent) => { if (!isResizing.current) return; if (e.clientX >= 280 && e.clientX <= 600) setSidebarWidth(e.clientX); };
@@ -50,8 +54,6 @@ export default function Map() {
           onSaveAndClose={trip.handleSaveCalendarChanges}
           onUpdateLiveEvents={trip.handleUpdateLiveEvents}
           onClose={() => router.push("/")} 
-          
-          // 🚀 斷線一修復：正式把大腦嘅 Edit Function 傳入 OrganizeMode！
           onEditPlace={trip.handleEditPlace} 
         />
       ) : (
@@ -84,6 +86,10 @@ export default function Map() {
                     onSwitchItinerary={trip.handleSwitchItinerary} 
                     hoveredPlaceId={trip.hoveredPlaceId}
                     setHoveredPlaceId={trip.setHoveredPlaceId}
+
+                    // 🚀 2. 將天線插落 Sidebar！
+                    activeTab={sidebarTab}
+                    onTabChange={setSidebarTab}
                   />
                 </div>
               </div>
@@ -103,7 +109,8 @@ export default function Map() {
             >
               <MapSearchBar onPlaceSelect={trip.handleMapClick} />
 
-              {trip.dailyPaths.length > 0 && (
+              {/* 🚀 3. 終極邏輯審查：只要 Sidebar 唔係睇緊「景點庫」(places / placeLibrary)，先至准許選單落地生根！ */}
+              {trip.dailyPaths.length > 0 && sidebarTab !== "places" && sidebarTab !== "placeLibrary" && (
                 <MapControl position={ControlPosition.TOP_LEFT}>
                   <div className="ml-3 mt-4 flex flex-col items-start">
                     <button 
@@ -147,7 +154,7 @@ export default function Map() {
                     isEditing={!!trip.editingPlaceId} 
                     googleMapsUrl={trip.selectedLocation.googleMapsUrl} 
                     placeColor={trip.placeColor}
-  setPlaceColor={trip.setPlaceColor}
+                    setPlaceColor={trip.setPlaceColor}
                   />
                 </InfoWindow>
               )}
@@ -156,15 +163,13 @@ export default function Map() {
         </div>
       )}
 
-      {/* 🌟 結界二修復（全域黑科技）：Organize Mode 專用之全域毛玻璃表單彈窗 🌟
-          只要處於 Organize Mode、大腦又測出 editingPlaceId 有嘢，直接於最頂層召喚 AddPlaceForm！ */}
+      {/* Organize Mode 全域表單彈窗 */}
       {isOrganizeMode && trip.editingPlaceId && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
           <div 
             onClick={(e) => e.stopPropagation()} 
             className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp"
           >
-            {/* 彈窗頂部 */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
               <div className="flex items-center gap-2">
                 <span className="text-xl">✏️</span>
@@ -177,8 +182,7 @@ export default function Map() {
               >✕</button>
             </div>
 
-            {/* 表單載體 */}
-<div className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col [&_form]:w-full [&_form]:max-w-none [&_input[type=text]]:w-full [&_input[type=tel]]:w-full [&_input[type=number]]:w-full [&_select]:w-full [&_textarea]:w-full">
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col [&_form]:w-full [&_form]:max-w-none [&_input[type=text]]:w-full [&_input[type=tel]]:w-full [&_input[type=number]]:w-full [&_select]:w-full [&_textarea]:w-full">
               <AddPlaceForm 
                 placeName={trip.placeName} setPlaceName={trip.setPlaceName} 
                 placeAddress={trip.placeAddress} setPlaceAddress={trip.setPlaceAddress}
@@ -193,6 +197,10 @@ export default function Map() {
                 onCancel={trip.handleCancel} 
                 isEditing={true} 
                 googleMapsUrl={trip.selectedLocation?.googleMapsUrl || ""} 
+
+                // 🚀 順手幫你補回頭先貼漏咗嘅顏色 Props！
+                placeColor={trip.placeColor}
+                setPlaceColor={trip.setPlaceColor}
               />
             </div>
           </div>

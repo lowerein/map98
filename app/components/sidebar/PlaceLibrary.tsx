@@ -159,7 +159,7 @@ export default function PlaceLibrary({
             >🗑️</button>
           )}
 
-          {isReadonly && (
+          {isReadonly  && (
             <span className="text-[10px] font-extrabold bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded shadow-2xs select-none">
               🔒 唯讀
             </span>

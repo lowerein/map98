@@ -1,7 +1,8 @@
 // components/organize/OrganizeSidebar.tsx
 "use client";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { Place } from "../types";
+import { buildSidebarGroups, SidebarGroupTree } from "@/app/utils/sidebar-utils"; // 🚀 1. 引入中央處理器與三維樹型別
 import PlaceDetailsPanel from "../sidebar/PlaceDetailsPanel";
 
 interface OrganizeSidebarProps {
@@ -32,16 +33,13 @@ export default function OrganizeSidebar({
   onEditPlace,
 }: OrganizeSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedCountries, setExpandedCountries] = useState<
-    Record<string, boolean>
-  >({});
-  const [expandedProvinces, setExpandedProvinces] = useState<
-    Record<string, boolean>
-  >({});
+  
+  // 🚀 1. 正式解封 L1, L2, L3 三層獨立狀態矩陣！
+  const [expandedLvl1, setExpandedLvl1] = useState<Record<string, boolean>>({});
+  const [expandedLvl2, setExpandedLvl2] = useState<Record<string, boolean>>({});
+  const [expandedLvl3, setExpandedLvl3] = useState<Record<string, boolean>>({});
 
-  // =====================================================================
-  // 🚀 1. 智能資產大分流：把傳進來的 Places 劏開成「我的」與「契哥給的」
-  // =====================================================================
+  // 資產大分流：劏開「我的」與「契哥給的」
   const { myPlaces, sharedPlaces } = useMemo(() => {
     const mine: Place[] = [];
     const shared: Place[] = [];
@@ -54,289 +52,238 @@ export default function OrganizeSidebar({
     return { myPlaces: mine, sharedPlaces: shared };
   }, [availablePlaces]);
 
-  const normaliseRegion = (
-    province: string | null | undefined,
-    country: string | null | undefined,
-  ) => {
-    if (!province) return "其他區域";
+  // =====================================================================
+  // 🚀 2. 雙軌接通中央處理器：原先百幾行的清洗邏輯，被這兩行徹底取代！
+  // =====================================================================
+  const myGrouped: SidebarGroupTree = useMemo(() => buildSidebarGroups(myPlaces, searchQuery, false), [myPlaces, searchQuery]);
+  const sharedGrouped: SidebarGroupTree = useMemo(() => buildSidebarGroups(sharedPlaces, searchQuery, true), [sharedPlaces, searchQuery]);
 
-    const pStr = province.trim().toLowerCase();
-    const cStr = country ? country.trim().toLowerCase() : "";
+  // L1 預設為 true (展開第一層：國家或協作者)
+  const toggleLvl1 = (key: string) => {
+    setExpandedLvl1((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }));
+  };
 
-    // 🇭🇰 香港大一統
-    if (cStr.includes("hong kong") || cStr.includes("香港")) {
-      if (pStr.includes("new territories") || pStr.includes("新界"))
-        return "新界";
-      if (pStr.includes("kowloon") || pStr.includes("九龍")) return "九龍";
-      if (
-        pStr.includes("island") ||
-        pStr.includes("香港島") ||
-        pStr === "hong kong" ||
-        pStr === "香港"
-      )
-        return "香港島";
-    }
+  // L2 預設為 false (收起第二層：區域或國家)
+  const toggleLvl2 = (key: string) => {
+    setExpandedLvl2((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }));
+  };
 
-    // 🇯🇵 日本大一統
-    if (cStr.includes("japan") || cStr.includes("日本")) {
-      if (pStr === "tokyo" || pStr.includes("東京都")) return "東京都";
-      if (pStr === "osaka" || pStr.includes("大阪")) return "大阪府";
-      if (pStr === "kyoto" || pStr.includes("京都")) return "京都府";
-      if (pStr === "hokkaido" || pStr.includes("北海道")) return "北海道";
-      if (pStr === "okinawa" || pStr.includes("沖繩")) return "沖繩縣";
-    }
-
-    // 🇹🇼 台灣大一統
-    if (cStr.includes("taiwan") || cStr.includes("台灣")) {
-      if (pStr.includes("taipei city") || pStr === "台北市") return "台北市";
-      if (pStr.includes("new taipei") || pStr === "新北市") return "新北市";
-      if (pStr.includes("taichung") || pStr === "台中市") return "台中市";
-      if (pStr.includes("kaohsiung") || pStr === "高雄市") return "高雄市";
-    }
-
-    // 🇺🇸 美國大一統
-    if (
-      cStr.includes("united states") ||
-      cStr.includes("美國") ||
-      cStr === "us"
-    ) {
-      if (pStr === "ny" || pStr === "new york") return "New York";
-      if (pStr === "ca" || pStr === "california") return "California";
-    }
-
-    return province;
+  // L3 預設為 false (收起第三層：共享池的省份區域)
+  const toggleLvl3 = (key: string) => {
+    setExpandedLvl3((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }));
   };
 
   // =====================================================================
-  // 🚀 2. 通用降維分組器：傳入清單與模式，自動洗出對應的 Level 1 與 Level 2
+  // 🚀 3. 針對「上下雙櫃桶」編寫的：三維雙引擎全域開合掃描器
   // =====================================================================
-  const buildGroups = useCallback(
-    (list: Place[], isSharedPool: boolean) => {
-      const groups: Record<string, Record<string, Place[]>> = {};
-
-      const filtered = list.filter(
-        (place) =>
-          place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (place.address &&
-            place.address.toLowerCase().includes(searchQuery.toLowerCase())),
-      );
-
-      filtered.forEach((place) => {
-        // 我的池 L1 是國家；共用池 L1 是「協作者名字」
-        const lvl1Key = isSharedPool
-          ? `來自 ${(place as any).ownerName || "協作者"}`
-          : place.country || "其他國家";
-
-        // 我的池 L2 是區域；共用池 L2 退回「國家」
-        const lvl2Key = isSharedPool
-          ? place.country || "未知國家"
-          : normaliseRegion(place.province, place.country);
-
-        if (!groups[lvl1Key]) groups[lvl1Key] = {};
-        if (!groups[lvl1Key][lvl2Key]) groups[lvl1Key][lvl2Key] = [];
-
-        groups[lvl1Key][lvl2Key].push(place);
-      });
-
-      return groups;
-    },
-    [searchQuery],
-  );
-
-  const myGrouped = useMemo(
-    () => buildGroups(myPlaces, false),
-    [myPlaces, buildGroups],
-  );
-  const sharedGrouped = useMemo(
-    () => buildGroups(sharedPlaces, true),
-    [sharedPlaces, buildGroups],
-  );
-
-  const toggleCountry = (country: string) => {
-    setExpandedCountries((prev) => ({
-      ...prev,
-      [country]: !(prev[country] ?? true),
-    }));
-  };
-
-  const toggleProvince = (key: string) => {
-    setExpandedProvinces((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }));
-  };
-
   const expandAll = () => {
-    setExpandedCountries({});
-    setExpandedProvinces({});
-  };
+    setExpandedLvl1({}); // L1 預設 true，清空等於全開
+    const openAllL2: Record<string, boolean> = {};
+    const openAllL3: Record<string, boolean> = {};
 
-  const collapseAll = () => {
-    const newCountries: Record<string, boolean> = {};
-    const newProvinces: Record<string, boolean> = {};
-
-    const collapsePool = (pool: Record<string, Record<string, Place[]>>) => {
-      Object.entries(pool).forEach(([k1, sub]) => {
-        newCountries[k1] = false;
-        Object.keys(sub).forEach((k2) => {
-          newProvinces[`${k1}-${k2}`] = false;
+    // 同時深度刮走「上櫃桶(Mine)」同「下櫃桶(Shared)」嘅所有 L2 與 L3 Key
+    const scrapePool = (pool: SidebarGroupTree) => {
+      Object.entries(pool).forEach(([k1, lvl2Obj]) => {
+        Object.entries(lvl2Obj).forEach(([k2, lvl3Obj]) => {
+          const fullL2Key = `${k1}-${k2}`;
+          openAllL2[fullL2Key] = true;
+          
+          Object.keys(lvl3Obj).forEach((k3) => {
+            openAllL3[`${fullL2Key}-${k3}`] = true;
+          });
         });
       });
     };
 
-    collapsePool(myGrouped);
-    collapsePool(sharedGrouped);
-    setExpandedCountries(newCountries);
-    setExpandedProvinces(newProvinces);
+    scrapePool(myGrouped);
+    scrapePool(sharedGrouped);
+    setExpandedLvl2(openAllL2);
+    setExpandedLvl3(openAllL3);
   };
 
-  // 通用卡片渲染迴圈
-  const renderPlaceCards = (items: Place[], isReadonly: boolean) => {
-    return items.map((place) => {
-      const isSelected = selectedPlace?.id === place.id;
-      const isHover = hoveredPlaceId === place.id;
-      const isScheduled = scheduledPlaceIds.has(place.id);
-      const customColor = place.color || "#3b82f6";
+  const collapseAll = () => {
+    const closeAllL1: Record<string, boolean> = {};
+    
+    const scrapeL1 = (pool: SidebarGroupTree) => {
+      Object.keys(pool).forEach((k1) => {
+        closeAllL1[k1] = false;
+      });
+    };
 
-      return (
-        <div
-          key={place.id}
-          data-place-id={place.id}
-          data-title={place.name}
-          onClick={() => setSelectedPlace(place)}
-          onDoubleClick={() => onFlyToPlace(place)}
-          onMouseEnter={() => setHoveredPlaceId(place.id)}
-          onMouseLeave={() => setHoveredPlaceId(null)}
-          style={{ borderLeftWidth: "6px", borderLeftColor: customColor }}
-          className={`fc-event relative p-2.5 border rounded-md cursor-grab shadow-sm transition-all duration-200 group ${
-            isSelected
-              ? "border-blue-500 bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-white font-bold ring-2 ring-blue-500/20"
-              : isHover
-                ? "border-amber-400 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300"
-                : isScheduled
-                  ? "border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-gray-400 dark:text-gray-500"
-                  : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:border-blue-300 dark:hover:border-blue-500"
-          }`}
-        >
-          <div className="flex items-start justify-between gap-1 mb-0.5">
-            <div className="flex items-center gap-1.5 truncate pr-2">
-              <span
-                className="w-2 h-2 rounded-full shrink-0 shadow-2xs"
-                style={{ backgroundColor: customColor }}
-              />
-              <span
-                className={`font-bold text-xs md:text-sm truncate ${isScheduled ? "line-through opacity-70" : ""}`}
-              >
-                {place.name}
-              </span>
-            </div>
+    scrapeL1(myGrouped);
+    scrapeL1(sharedGrouped);
+    
+    setExpandedLvl1(closeAllL1);
+    setExpandedLvl2({}); // L2/L3 預設 false，清空等於物理全合
+    setExpandedLvl3({});
+  };
 
-            {isScheduled && (
-              <span className="shrink-0 text-[9px] font-black bg-emerald-500 dark:bg-emerald-600 text-white px-1 rounded select-none">
-                ✓ 已排
-              </span>
-            )}
+  // =====================================================================
+  // 🚀 4. 可拖拽地標卡片渲染模組抽離 (DRY 原則)
+  // =====================================================================
+  const renderDragCard = (place: Place, isReadonly: boolean) => {
+    const isSelected = selectedPlace?.id === place.id;
+    const isHover = hoveredPlaceId === place.id;
+    const isScheduled = scheduledPlaceIds.has(place.id);
+    const customColor = place.color || "#3b82f6";
+
+    return (
+      <div
+        key={place.id}
+        data-place-id={place.id}
+        data-title={place.name}
+        onClick={() => setSelectedPlace(place)}
+        onDoubleClick={() => onFlyToPlace(place)}
+        onMouseEnter={() => setHoveredPlaceId(place.id)}
+        onMouseLeave={() => setHoveredPlaceId(null)}
+        style={{ borderLeftWidth: "6px", borderLeftColor: customColor }}
+        className={`fc-event relative p-2.5 border rounded-md cursor-grab shadow-sm transition-all duration-200 group ${
+          isSelected
+            ? "border-blue-500 bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-white font-bold ring-2 ring-blue-500/20"
+            : isHover
+              ? "border-amber-400 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300"
+              : isScheduled
+                ? "border-emerald-200/80 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20 text-gray-400 dark:text-gray-500"
+                : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:border-blue-300 dark:hover:border-blue-500"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-1 mb-0.5">
+          <div className="flex items-center gap-1.5 truncate pr-2">
+            <span className="w-2 h-2 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: customColor }} />
+            <span className={`font-bold text-xs md:text-sm truncate ${isScheduled ? "line-through opacity-70" : ""}`}>
+              {place.name}
+            </span>
           </div>
 
-          {place.address && (
-            <div className="text-[10px] opacity-70 truncate pointer-events-none pl-3.5">
-              📍 {place.address}
-            </div>
+          {isScheduled && (
+            <span className="shrink-0 text-[9px] font-black bg-emerald-500 dark:bg-emerald-600 text-white px-1 rounded select-none">
+              ✓ 已排
+            </span>
           )}
+        </div>
 
-          {/* 毛玻璃操作組 */}
-          <div
-            onMouseDown={(e) => e.stopPropagation()}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white/95 dark:bg-gray-800/95 p-1 rounded-lg shadow-md border border-gray-100 dark:border-gray-700 backdrop-blur-xs"
-          >
-            {/* 🚀 絕殺 3：主權審查！如果是契哥給的共用點，沒收 Edit 按鈕！ */}
-            {!isReadonly && onEditPlace && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditPlace(place);
-                }}
-                className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-amber-500 hover:text-white text-amber-600 dark:text-amber-400 rounded transition text-xs shadow-2xs cursor-pointer"
-                title="編輯此景點"
-              >
-                ✏️
-              </button>
-            )}
+        {place.address && (
+          <div className="text-[10px] opacity-70 truncate pointer-events-none pl-3.5">
+            📍 {place.address}
+          </div>
+        )}
+
+        {/* 毛玻璃操作組 */}
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white/95 dark:bg-gray-800/95 p-1 rounded-lg shadow-md border border-gray-100 dark:border-gray-700 backdrop-blur-xs"
+        >
+          {!isReadonly && onEditPlace && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFlyToPlace(place);
-              }}
-              className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 rounded transition text-xs shadow-2xs cursor-pointer"
-              title="在地圖定位"
-            >
-              🎯
-            </button>
-          </div>
+              onClick={(e) => { e.stopPropagation(); onEditPlace(place); }}
+              className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-amber-500 hover:text-white text-amber-600 dark:text-amber-400 rounded transition text-xs shadow-2xs cursor-pointer"
+              title="編輯此景點"
+            >✏️</button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onFlyToPlace(place); }}
+            className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-blue-500 hover:text-white text-blue-600 dark:text-blue-400 rounded transition text-xs shadow-2xs cursor-pointer"
+            title="在地圖定位"
+          >🎯</button>
         </div>
-      );
-    });
+      </div>
+    );
   };
 
-  // 通用樹狀層級渲染迴圈
-  const renderGroupTree = (
-    pool: Record<string, Record<string, Place[]>>,
-    isReadonlyPool: boolean,
-  ) => {
+  // =====================================================================
+  // 🚀 5. 核心精髓：支援解讀 _DIRECT_ 跳板的「真．三層超立方體物理套娃」
+  // =====================================================================
+  const renderGroupTree = (pool: SidebarGroupTree, isReadonlyPool: boolean) => {
     if (Object.keys(pool).length === 0) return null;
 
-    return Object.entries(pool).map(([lvl1Key, subGroups]) => {
-      const isL1Expanded = expandedCountries[lvl1Key] ?? true;
+    return Object.entries(pool).map(([lvl1Key, lvl2Obj]) => {
+      const isL1Expanded = expandedLvl1[lvl1Key] ?? true; // 國家層/人名層預設展開
 
       return (
         <div
           key={lvl1Key}
-          className={`border rounded-lg p-2.5 transition-colors ${
+          className={`border rounded-xl p-3 transition-colors ${
             isReadonlyPool
               ? "border-purple-100 dark:border-purple-950/50 bg-purple-50/15 dark:bg-purple-950/10"
               : "border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30"
           }`}
         >
+          {/* === [LAYER 1 HEADER] === */}
           <div
-            onClick={() => toggleCountry(lvl1Key)}
-            className={`text-xs font-black uppercase tracking-wider flex items-center justify-between cursor-pointer select-none hover:opacity-80 py-0.5 ${
-              isReadonlyPool
-                ? "text-purple-700 dark:text-purple-400 font-extrabold"
-                : "text-blue-600 dark:text-blue-400"
+            onClick={() => toggleLvl1(lvl1Key)}
+            className={`text-xs font-black uppercase tracking-wider flex items-center justify-between cursor-pointer select-none py-1 ${
+              isReadonlyPool ? "text-purple-700 dark:text-purple-400 font-extrabold" : "text-blue-600 dark:text-blue-400"
             }`}
           >
             <span className="flex items-center gap-1 truncate pr-2">
               <span>{isReadonlyPool ? "👤" : "🌍"}</span>
               <span className="truncate">{lvl1Key}</span>
             </span>
-            <span className="text-[10px] text-gray-400 shrink-0">
+            <span className="text-[10px] text-gray-400 shrink-0 transition-transform duration-200">
               {isL1Expanded ? "▼" : "▶"}
             </span>
           </div>
 
           {isL1Expanded && (
-            <div className="flex flex-col gap-2.5 pl-1 mt-2">
-              {Object.entries(subGroups).map(([lvl2Key, items]) => {
+            <div className="flex flex-col gap-3 pl-1 mt-2">
+              {Object.entries(lvl2Obj).map(([lvl2Key, lvl3Obj]) => {
                 const fullSubKey = `${lvl1Key}-${lvl2Key}`;
-                const isL2Expanded = expandedProvinces[fullSubKey] ?? true;
+                const isL2Expanded = expandedLvl2[fullSubKey] ?? false; // 預設收起
 
                 return (
-                  <div key={lvl2Key} className="flex flex-col gap-1">
+                  <div key={lvl2Key} className="flex flex-col gap-1.5">
+                    {/* === [LAYER 2 HEADER] === */}
                     <div
-                      onClick={() => toggleProvince(fullSubKey)}
-                      className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center justify-between cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-400 py-0.5"
+                      onClick={() => toggleLvl2(fullSubKey)}
+                      className="text-[11px] font-bold text-gray-400 dark:text-gray-500 flex items-center justify-between cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-400 py-0.5"
                     >
-                      <span>
-                        {isReadonlyPool ? "📍" : "🏙️"} {lvl2Key} ({items.length}
-                        )
-                      </span>
-                      <span className="text-[8px] text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <span>{isReadonlyPool ? "🌍" : "🏙️"}</span> {lvl2Key}
+                      </div>
+                      <span className="text-[9px] text-gray-400">
                         {isL2Expanded ? "▼" : "▶"}
                       </span>
                     </div>
 
                     {isL2Expanded && (
-                      <div className="flex flex-col gap-1.5 pl-2 border-l border-gray-200 dark:border-gray-700 mt-1 animate-fadeIn">
-                        {renderPlaceCards(items, isReadonlyPool)}
+                      <div className="flex flex-col gap-1.5 pl-2.5 border-l border-gray-200 dark:border-gray-700 animate-fadeIn pt-0.5">
+                        
+                        {Object.entries(lvl3Obj).map(([lvl3Key, items]) => {
+                          const fullL3Key = `${fullSubKey}-${lvl3Key}`;
+                          const isL3Expanded = expandedLvl3[fullL3Key] ?? false; // 預設收起
+
+                          // 🌟 核心魔法跳板：遇到 "_DIRECT_" 訊號，代表這是上櫃桶（我的景點），直接吐出可拖拽卡片！
+                          if (lvl3Key === "_DIRECT_") {
+                            return (items as Place[]).map((place) => renderDragCard(place, isReadonlyPool));
+                          }
+
+                          // 🌟 純血 Level 3：下櫃桶（與我共用），老老實實渲染第三層的 [省份/區域] Header！
+                          return (
+                            <div key={lvl3Key} className="flex flex-col gap-1 mt-0.5 mb-1 pl-1.5 border-l border-purple-200 dark:border-purple-800">
+                              {/* === [LAYER 3 HEADER] === */}
+                              <div
+                                onClick={() => toggleLvl3(fullL3Key)}
+                                className="text-[10px] font-extrabold text-purple-600 dark:text-purple-400 flex items-center justify-between cursor-pointer select-none py-0.5 hover:opacity-80"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>🏙️</span> {lvl3Key} ({(items as Place[]).length})
+                                 </div>
+                                <span className="text-[8px] text-purple-300 dark:text-purple-500">
+                                  {isL3Expanded ? "▼" : "▶"}
+                                </span>
+                              </div>
+
+                              {isL3Expanded && (
+                                <div className="flex flex-col gap-1.5 pl-2 pt-1 animate-fadeIn">
+                                  {(items as Place[]).map((place) => renderDragCard(place, isReadonlyPool))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
                       </div>
                     )}
                   </div>
@@ -413,12 +360,10 @@ export default function OrganizeSidebar({
               </p>
             ) : (
               <>
-                {/* 上櫃桶：我自己建立的點 */}
+                {/* 上櫃桶：我自己建立的點 (2層樹，點開見卡) */}
                 {renderGroupTree(myGrouped, false)}
 
-                {/* ===================================================================== */}
-                {/* 🚀 絕殺 4：上下櫃桶優雅隔離帶 —— 只有當契哥有 share 嘢給你時才現身！ */}
-                {/* ===================================================================== */}
+                {/* 隔離帶 */}
                 {Object.keys(sharedGrouped).length > 0 && (
                   <div className="pt-2 pb-1">
                     <div className="flex items-center gap-2 select-none">
@@ -431,7 +376,7 @@ export default function OrganizeSidebar({
                   </div>
                 )}
 
-                {/* 下櫃桶：契哥分享給我的點 */}
+                {/* 下櫃桶：契哥分享給我的點 (3層雲端硬碟，點開見國家->省份->卡) */}
                 {renderGroupTree(sharedGrouped, true)}
               </>
             )}

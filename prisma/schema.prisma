@@ -18,7 +18,7 @@ model User {
   image         String?
 
   role      Role       @default(USER)
-  status    UserStatus @default(ACTIVE)
+  status    UserStatus @default(INACTIVE)
   createdAt DateTime   @default(now())
 
   accounts Account[]

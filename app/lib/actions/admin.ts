@@ -1,7 +1,9 @@
+// action/admin.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
 import { requireAdmin } from "@/lib/auth-helpers"
+import { revalidatePath } from "next/cache" // 🚀 1. 引入 Next.js 伺服器快取導播機
 import type { PlaceStatus, UserStatus, Role } from "@prisma/client"
 
 // ----------------------------------------------------------------------------
@@ -9,13 +11,15 @@ import type { PlaceStatus, UserStatus, Role } from "@prisma/client"
 // ----------------------------------------------------------------------------
 export async function getStats() {
   await requireAdmin()
-  const [users, itineraries, places, pendingPlaces] = await Promise.all([
+  // 🚀 2. 補上 pendingUsers 點算器，精準捕捉 status 為 INACTIVE 的等候人數！
+  const [users, pendingUsers, itineraries, places, pendingPlaces] = await Promise.all([
     prisma.user.count(),
+    prisma.user.count({ where: { status: "INACTIVE" } }), 
     prisma.itinerary.count(),
     prisma.place.count(),
     prisma.place.count({ where: { status: "PENDING" } }),
   ])
-  return { users, itineraries, places, pendingPlaces }
+  return { users, pendingUsers, itineraries, places, pendingPlaces }
 }
 
 // ----------------------------------------------------------------------------
@@ -48,19 +52,25 @@ export async function listUsers(): Promise<AdminUserDTO[]> {
 export async function updateUserStatus(userId: string, status: string) {
   const admin = await requireAdmin()
   if (userId === admin.id) throw new Error("你不能更改自己的帳號狀態")
+  
   await prisma.user.update({
     where: { id: userId },
     data: { status: status.toUpperCase() as UserStatus },
   })
+
+  revalidatePath("/admin") // 🚀 3. 觸發導播機：立刻抹除舊畫面，UI 實時由紅燈轉綠燈！
 }
 
 export async function updateUserRole(userId: string, role: string) {
   const admin = await requireAdmin()
   if (userId === admin.id) throw new Error("你不能更改自己的權限")
+  
   await prisma.user.update({
     where: { id: userId },
     data: { role: role.toUpperCase() as Role },
   })
+
+  revalidatePath("/admin") // 🚀 同上
 }
 
 // ----------------------------------------------------------------------------
@@ -90,7 +100,7 @@ export async function listAllPlaces(): Promise<AdminPlaceDTO[]> {
     country: p.country,
     province: p.province,
     status: p.status.toLowerCase() as AdminPlaceDTO["status"],
-    submitter: p.owner.name || p.owner.email || "—",
+    submitter: p.owner?.name || p.owner?.email || "—",
     date: p.createdAt.toISOString().slice(0, 10),
   }))
 }
@@ -101,6 +111,7 @@ export async function updatePlaceStatus(placeId: string, status: string) {
     where: { id: placeId },
     data: { status: status.toUpperCase() as PlaceStatus },
   })
+  revalidatePath("/admin") 
 }
 
 // ----------------------------------------------------------------------------

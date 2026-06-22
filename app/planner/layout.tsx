@@ -12,6 +12,18 @@ export default async function PlannerLayout({
   const session = await auth();
   if (!session?.user) redirect("/");
 
+  if (session.user.status === "INACTIVE") {
+    redirect("/pending");
+  }
+
+  if (session.user.status === "BANNED") {
+    return (
+      <div className="p-12 text-center text-red-500 font-black">
+        你的帳號已被系統封鎖。
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Navbar />

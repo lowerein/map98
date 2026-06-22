@@ -45,7 +45,12 @@ export default function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-white dark:bg-gray-900 transition-colors duration-200">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-gray-900 transition-colors duration-200" style={{
+        // 🚀 GPU 裝甲 A：向瀏覽器宣告「這區塊就算變闊變窄，都絕對不准波及旁邊地圖的排版！」
+        contain: "paint layout",
+        // 🚀 GPU 裝甲 B：叫手機顯示卡預留獨立顯存卡位給它的 Width
+        willChange: "width",
+      }}>
       
       {/* 頂部 Tab Bar */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 transition-colors pt-2">

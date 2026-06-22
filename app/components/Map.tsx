@@ -10,8 +10,6 @@ import AddPlaceForm from "./AddPlaceForm";
 import MapCanvas from "./MapCanvas";
 import OrganizeMode from "./OrganizeMode";
 import MapSearchBar from "./MapSearchBar";
-
-// 🚀 1. 總部引入分享中心
 import ShareModal from "./share/ShareModal";
 
 export default function Map() {
@@ -29,27 +27,38 @@ export default function Map() {
   const isResizing = useRef(false);
   const isMobileResizing = useRef(false); 
 
+  // 👑 1. 直驅引擎核心：直接綁定 Sidebar 實體肉身
+  const sidebarDOMRef = useRef<HTMLDivElement | null>(null);
+  
+  // 👑 2. 動畫封印鎖：拖拽時強制殺死 transition-all，放手時復活
+  const [isDragging, setIsDragging] = useState(false);
+
   const [isMounted, setIsMounted] = useState(false);
   const [showRouteMenu, setShowRouteMenu] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<string>("places");
-const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || trip.sidebarSelectedPlace?.isShared;
-
-
-  // 🚀 2. 總電房宣告：景點庫專用分享中心的開關狀態
+  
+  const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || trip.sidebarSelectedPlace?.isShared;
   const [isLibShareOpen, setIsLibShareOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true); 
 
+    // 👑 3. 脫鉤直驅海關：嚴禁在此處呼叫任何 setSidebarX！0 次 React Re-render！
     const handleMove = (clientY: number, clientX: number) => {
+      if (!sidebarDOMRef.current) return;
+
+      // Desktop 橫向拉伸直驅
       if (isResizing.current) { 
-        if (clientX >= 280 && clientX <= 600) setSidebarWidth(clientX); 
+        if (clientX >= 280 && clientX <= 600) {
+          sidebarDOMRef.current.style.width = `${clientX}px`;
+        }
       }
+      // Mobile 垂直拉伸直驅
       if (isMobileResizing.current) {
         const windowH = window.innerHeight;
         const newH = windowH - clientY; 
         if (newH >= 80 && newH <= windowH * 0.85) {
-          setSidebarHeight(newH);
+          sidebarDOMRef.current.style.height = `${newH}px`;
         }
       }
     };
@@ -59,9 +68,22 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
       if (e.touches.length > 0) handleMove(e.touches[0].clientY, e.touches[0].clientX);
     };
 
+    // 👑 4. 結賬結算台：放手那一刻，才讀取 style 數字一次性寫入 React
     const handleUp = () => { 
-      isResizing.current = false; 
-      isMobileResizing.current = false;
+      if (isResizing.current && sidebarDOMRef.current) {
+        isResizing.current = false;
+        setIsDragging(false);
+        const finalW = parseInt(sidebarDOMRef.current.style.width, 10);
+        if (!isNaN(finalW)) setSidebarWidth(finalW);
+      }
+
+      if (isMobileResizing.current && sidebarDOMRef.current) {
+        isMobileResizing.current = false;
+        setIsDragging(false);
+        const finalH = parseInt(sidebarDOMRef.current.style.height, 10);
+        if (!isNaN(finalH)) setSidebarHeight(finalH);
+      }
+
       document.body.style.cursor = "default"; 
       document.body.style.userSelect = "auto";
     };
@@ -79,10 +101,16 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
     };
   }, []);
 
-  const startResize = (e: React.MouseEvent) => { e.preventDefault(); isResizing.current = true; document.body.style.cursor = "col-resize"; };
+  const startResize = (e: React.MouseEvent) => { 
+    e.preventDefault(); 
+    isResizing.current = true; 
+    setIsDragging(true); // 🔒 封印動畫
+    document.body.style.cursor = "col-resize"; 
+  };
   
   const startMobileResize = () => {
     isMobileResizing.current = true;
+    setIsDragging(true); // 🔒 封印動畫
     document.body.style.cursor = "row-resize";
     document.body.style.userSelect = "none";
   };
@@ -107,21 +135,31 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
       ) : (
         <div className="relative w-full h-[calc(100vh-56px)] flex flex-col-reverse md:flex-row overflow-hidden bg-gray-100 dark:bg-gray-950 transition-colors">
           
+          {/* ===================================================================== */}
+          {/* 🚀 5. 穿上裝甲的 Sidebar 肉身容器 */}
+          {/* ===================================================================== */}
           <div 
+            ref={sidebarDOMRef}
             style={{ 
               width: isMounted && window.innerWidth >= 768 ? (isSidebarOpen ? `${sidebarWidth}px` : "0px") : "100%",
-              height: isMounted && window.innerWidth < 768 ? (isSidebarOpen ? `${sidebarHeight}px` : "48px") : "100%"
+              height: isMounted && window.innerWidth < 768 ? (isSidebarOpen ? `${sidebarHeight}px` : "48px") : "100%",
+              contain: "paint layout",
+              willChange: isMounted && window.innerWidth < 768 ? "height" : "width",
             }} 
-            className="relative z-20 flex flex-col transition-all md:transition-none duration-300 ease-out bg-white dark:bg-gray-900 shadow-2xl border-t md:border-t-0 md:border-r border-gray-200 dark:border-gray-800 w-full md:w-auto"
+            className={`relative z-20 flex flex-col bg-white dark:bg-gray-900 shadow-2xl border-t md:border-t-0 md:border-r border-gray-200 dark:border-gray-800 w-full md:w-auto ${
+              isDragging ? "!transition-none" : "transition-all md:transition-none duration-300 ease-out"
+            }`}
           >
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex absolute top-1/2 -right-6 -translate-y-1/2 w-6 h-16 bg-white dark:bg-gray-800 border border-l-0 border-gray-200 dark:border-gray-700 rounded-r-md shadow-md items-center justify-center text-gray-500 dark:text-gray-400 z-30 cursor-pointer">
               {isSidebarOpen ? "◀" : "▶"}
             </button>
 
+            {/* 📱 手機版頂部拖曳把手 */}
             <div 
               onTouchStart={startMobileResize}
               onMouseDown={startMobileResize}
               onDoubleClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              style={{ touchAction: "none" }} // 🛡️ 絕對判定結界
               className="md:hidden w-full h-12 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 cursor-row-resize z-30 flex-shrink-0 select-none relative group"
             >
               <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
@@ -137,17 +175,19 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
                   setIsSidebarOpen(!isSidebarOpen);
                 }}
                 className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-200/70 dark:bg-gray-800/70 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition active:scale-90 shadow-2xs cursor-pointer"
-                title={isSidebarOpen ? "最小化面板" : "展開面板"}
               >
-                {isSidebarOpen ? (
-                  <span className="w-2.5 h-0.5 bg-current rounded-sm" />
-                ) : (
-                  <span className="text-[10px] font-black">▲</span>
-                )}
+                {isSidebarOpen ? <span className="w-2.5 h-0.5 bg-current rounded-sm" /> : <span className="text-[10px] font-black">▲</span>}
               </button>
             </div>
 
-            {isSidebarOpen && <div onMouseDown={startResize} className="hidden md:block absolute top-0 right-0 bottom-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/50 bg-transparent transition z-40" />}
+            {/* 💻 Desktop 側邊拖曳把手 */}
+            {isSidebarOpen && (
+              <div 
+                onMouseDown={startResize} 
+                style={{ touchAction: "none" }} 
+                className="hidden md:block absolute top-0 right-0 bottom-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/50 bg-transparent transition z-40" 
+              />
+            )}
 
             <div className="flex-1 w-full h-full overflow-hidden relative">
               <div className="w-full h-full absolute top-0 left-0 flex flex-col">
@@ -169,10 +209,6 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
                     setHoveredPlaceId={trip.setHoveredPlaceId}
                     activeTab={sidebarTab}
                     onTabChange={setSidebarTab}
-
-                    // =====================================================================
-                    // 🚀 3. 靈魂接通：將開啟「景點庫分享中心」的發射按鈕遞給 Sidebar！
-                    // =====================================================================
                     onOpenShareModal={() => setIsLibShareOpen(true)}
                   />
                 </div>
@@ -199,7 +235,7 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
                   <div className="ml-3 mt-4 flex flex-col items-start">
                     <button 
                       type="button" onClick={() => setShowRouteMenu(!showRouteMenu)}
-                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all cursor-pointer" title="切換路線選單"
+                      className="md:hidden w-10 h-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl shadow-md border border-gray-200/80 dark:border-gray-800/80 flex items-center justify-center text-lg active:scale-95 transition-all cursor-pointer"
                     >🗺️</button>
                     <div className={`${showRouteMenu ? "flex animate-slideDown" : "hidden"} md:flex flex-col gap-1 mt-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm p-3 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 max-h-[45vh] md:max-h-[60vh] overflow-y-auto custom-scrollbar min-w-[130px]`}>
                       <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 border-b border-gray-100 dark:border-gray-800 pb-1 mb-1"><span>🗺️ 顯示路線</span></div>
@@ -226,20 +262,15 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
                     placeName={trip.placeName} setPlaceName={trip.setPlaceName} 
                     placeAddress={trip.placeAddress} setPlaceAddress={trip.setPlaceAddress}
                     placePhone={trip.placePhone} setPlacePhone={trip.setPlacePhone}
-                    placeHours={trip.placeHours}
-                    activeFieldsConfig={trip.activeFieldsConfig}
-                    dynamicFieldValues={trip.dynamicFieldValues}
-                    setDynamicFieldValues={trip.setDynamicFieldValues}
+                    placeHours={trip.placeHours} activeFieldsConfig={trip.activeFieldsConfig}
+                    dynamicFieldValues={trip.dynamicFieldValues} setDynamicFieldValues={trip.setDynamicFieldValues}
                     onSubmit={(e, finalDynamicValues) => {
                       const isSuccess = trip.handleSavePlace(e, finalDynamicValues);
                       if (isSuccess) setIsSidebarOpen(true);
                     }} 
-                    onCancel={trip.handleCancel} 
-                    isEditing={!!trip.editingPlaceId} 
-                    googleMapsUrl={trip.selectedLocation.googleMapsUrl} 
-                    placeColor={trip.placeColor}
-                    setPlaceColor={trip.setPlaceColor}
-                    isViewer={isThisPlaceReadonly}
+                    onCancel={trip.handleCancel} isEditing={!!trip.editingPlaceId} 
+                    googleMapsUrl={trip.selectedLocation.googleMapsUrl} placeColor={trip.placeColor}
+                    setPlaceColor={trip.setPlaceColor} isViewer={isThisPlaceReadonly}
                   />
                 </InfoWindow>
               )}
@@ -248,7 +279,6 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
         </div>
       )}
 
-      {/* Organize Mode 全域表單彈窗 */}
       {isOrganizeMode && trip.editingPlaceId && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
           <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-scaleUp">
@@ -273,15 +303,7 @@ const isThisPlaceReadonly = trip.sidebarSelectedPlace?.access === "viewer" || tr
         </div>
       )}
 
-      {/* ===================================================================== */}
-      {/* 🚀 4. 全域景點庫專用分享中心肉身掛載點 */}
-      {/* ===================================================================== */}
-      <ShareModal
-        mode="library"
-        isOpen={isLibShareOpen}
-        onClose={() => setIsLibShareOpen(false)}
-      />
-
+      <ShareModal mode="library" isOpen={isLibShareOpen} onClose={() => setIsLibShareOpen(false)} />
     </APIProvider>
   );
 }

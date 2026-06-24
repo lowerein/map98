@@ -55,6 +55,7 @@ interface MapCanvasProps {
   savedPlaces: MyPlaceType[];
   selectedLocation: { lat: number; lng: number; googleMapsUrl?: string } | null;
   activePlaceId?: string | null;
+  // 🧹 毒瘤已清除：safePadding 相關宣告完全移除
   onMapClick: (data: {
     lat: number;
     lng: number;
@@ -82,6 +83,7 @@ export default function MapCanvas({
   savedPlaces,
   selectedLocation,
   activePlaceId,
+  // 🧹 毒瘤已清除
   onMapClick,
   onMarkerClick,
   hoveredPlaceId,
@@ -101,22 +103,33 @@ export default function MapCanvas({
   
   const isDarkMode = mounted && resolvedTheme === "dark";
 
-  // =====================================================================
   // 🎨 頂級視覺調校：按「光暗模式」與「選中狀態」，動態演算針頭邊框色
-  // =====================================================================
   const getPinBorderColor = (isHighlighted: boolean) => {
     if (isDarkMode) {
-      // 🌙 黑夜模式：平常隱身深黑槽，選中時發出聖潔白光環
       return isHighlighted ? "#ffffff" : "#090d16";
     } else {
-      // ☀️ 白晝模式：平常純白框割開馬路底色，選中時曜石墨黑框死死鎖定
       return isHighlighted ? "#0f172a" : "#ffffff";
     }
   };
 
+  // =====================================================================
+  // 👑 官方標準直驅：Pan 就位後，補多一腳物理像素推移，完美避開 UI 遮擋
+  // =====================================================================
   useEffect(() => {
     if (map && selectedLocation) {
+      // 1. 先正常導航去目標坐標
       map.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
+
+      // 2. 等 Google 內置的 panTo 起步後 (120ms)，補一腳螢幕絕對像素偏移：
+      setTimeout(() => {
+        if (window.innerWidth >= 768) {
+          // 💻 Desktop：地圖鏡頭向左拉 160px ＝ 地標本體「向右送 160px」，送到右邊白區！
+          map.panBy(-160, 0);
+        } else {
+          // 📱 Mobile：地圖鏡頭向下壓 150px ＝ 地標本體「向上升 150px」，送上螢幕中端！
+          map.panBy(0, 150);
+        }
+      }, 120);
     }
   }, [map, selectedLocation]);
 
@@ -198,12 +211,10 @@ export default function MapCanvas({
       onClick={handleInternalClick}
       gestureHandling="greedy"
     >
-      {/* 臨時新增點的大頭針 */}
       {selectedLocation && !activePlaceId && (
         <AdvancedMarker position={selectedLocation} zIndex={100}>
           <Pin
             background={"#ef4444"}
-            // 🚀 臨時針頭同步大一統：黑夜發白熾光，白晝用沉穩血紅邊！
             borderColor={isDarkMode ? "#ffffff" : "#991b1b"} 
             glyphColor={"#ffffff"}
             glyph="+"
@@ -222,7 +233,7 @@ export default function MapCanvas({
       {savedPlaces.map((place) => {
         const isHovered = hoveredPlaceId === place.id;
         const isActive = activePlaceId === place.id; 
-        const isHighlighted = isActive || isHovered; // 🚀 狀態合體
+        const isHighlighted = isActive || isHovered; 
 
         const pinColor = place.color || "#2563eb";
         const computedBorderColor = getPinBorderColor(isHighlighted);
@@ -258,7 +269,7 @@ export default function MapCanvas({
           >
             <Pin
               background={pinColor} 
-              borderColor={computedBorderColor} // 🎯 導航級智能邊框通電！
+              borderColor={computedBorderColor} 
               glyphColor={"#ffffff"}
               scale={currentScale}
               glyph={glyphIcon} 

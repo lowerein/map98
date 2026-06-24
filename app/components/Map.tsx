@@ -1,16 +1,17 @@
 // components/Map.tsx
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { APIProvider, InfoWindow, MapControl, ControlPosition } from "@vis.gl/react-google-maps";
+import { useState, useEffect, useRef } from "react"; // 🧹 抽脂細節：已將 useMemo 移除
+import { APIProvider, MapControl, ControlPosition } from "@vis.gl/react-google-maps";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTripData } from "../hooks/useTripData"; 
 
 import Sidebar from "./Sidebar";
-import AddPlaceForm from "./AddPlaceForm";
+import AddPlaceForm from "./AddPlaceForm"; // ⚠️ 必須保留，供下方 OrganizeMode Modal 使用
 import MapCanvas from "./MapCanvas";
 import OrganizeMode from "./OrganizeMode";
 import MapSearchBar from "./MapSearchBar";
 import ShareModal from "./share/ShareModal";
+import PlaceFormPopup from "./PlaceFormPopup"; // 🚀 引入響應式雙軌表單
 
 export default function Map() {
   const router = useRouter();
@@ -27,10 +28,7 @@ export default function Map() {
   const isResizing = useRef(false);
   const isMobileResizing = useRef(false); 
 
-  // 👑 1. 直驅引擎核心：直接綁定 Sidebar 實體肉身
   const sidebarDOMRef = useRef<HTMLDivElement | null>(null);
-  
-  // 👑 2. 動畫封印鎖：拖拽時強制殺死 transition-all，放手時復活
   const [isDragging, setIsDragging] = useState(false);
 
   const [isMounted, setIsMounted] = useState(false);
@@ -43,17 +41,14 @@ export default function Map() {
   useEffect(() => {
     setIsMounted(true); 
 
-    // 👑 3. 脫鉤直驅海關：嚴禁在此處呼叫任何 setSidebarX！0 次 React Re-render！
     const handleMove = (clientY: number, clientX: number) => {
       if (!sidebarDOMRef.current) return;
 
-      // Desktop 橫向拉伸直驅
       if (isResizing.current) { 
         if (clientX >= 280 && clientX <= 600) {
           sidebarDOMRef.current.style.width = `${clientX}px`;
         }
       }
-      // Mobile 垂直拉伸直驅
       if (isMobileResizing.current) {
         const windowH = window.innerHeight;
         const newH = windowH - clientY; 
@@ -68,7 +63,6 @@ export default function Map() {
       if (e.touches.length > 0) handleMove(e.touches[0].clientY, e.touches[0].clientX);
     };
 
-    // 👑 4. 結賬結算台：放手那一刻，才讀取 style 數字一次性寫入 React
     const handleUp = () => { 
       if (isResizing.current && sidebarDOMRef.current) {
         isResizing.current = false;
@@ -104,16 +98,18 @@ export default function Map() {
   const startResize = (e: React.MouseEvent) => { 
     e.preventDefault(); 
     isResizing.current = true; 
-    setIsDragging(true); // 🔒 封印動畫
+    setIsDragging(true); 
     document.body.style.cursor = "col-resize"; 
   };
   
   const startMobileResize = () => {
     isMobileResizing.current = true;
-    setIsDragging(true); // 🔒 封印動畫
+    setIsDragging(true); 
     document.body.style.cursor = "row-resize";
     document.body.style.userSelect = "none";
   };
+
+  {/* 🧹 毒瘤 safeMapPadding 經已徹底清除 */}
 
   return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!} libraries={["places"]} language="zh-HK">
@@ -135,9 +131,6 @@ export default function Map() {
       ) : (
         <div className="relative w-full h-[calc(100vh-56px)] flex flex-col-reverse md:flex-row overflow-hidden bg-gray-100 dark:bg-gray-950 transition-colors">
           
-          {/* ===================================================================== */}
-          {/* 🚀 5. 穿上裝甲的 Sidebar 肉身容器 */}
-          {/* ===================================================================== */}
           <div 
             ref={sidebarDOMRef}
             style={{ 
@@ -154,12 +147,11 @@ export default function Map() {
               {isSidebarOpen ? "◀" : "▶"}
             </button>
 
-            {/* 📱 手機版頂部拖曳把手 */}
             <div 
               onTouchStart={startMobileResize}
               onMouseDown={startMobileResize}
               onDoubleClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-              style={{ touchAction: "none" }} // 🛡️ 絕對判定結界
+              style={{ touchAction: "none" }} 
               className="md:hidden w-full h-12 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 cursor-row-resize z-30 flex-shrink-0 select-none relative group"
             >
               <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
@@ -180,14 +172,7 @@ export default function Map() {
               </button>
             </div>
 
-            {/* 💻 Desktop 側邊拖曳把手 */}
-            {isSidebarOpen && (
-              <div 
-                onMouseDown={startResize} 
-                style={{ touchAction: "none" }} 
-                className="hidden md:block absolute top-0 right-0 bottom-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/50 bg-transparent transition z-40" 
-              />
-            )}
+            {isSidebarOpen && <div onMouseDown={startResize} className="hidden md:block absolute top-0 right-0 bottom-0 w-1.5 h-full cursor-col-resize hover:bg-blue-400/50 bg-transparent transition z-40" />}
 
             <div className="flex-1 w-full h-full overflow-hidden relative">
               <div className="w-full h-full absolute top-0 left-0 flex flex-col">
@@ -256,24 +241,12 @@ export default function Map() {
                 </MapControl>
               )}
 
-              {trip.selectedLocation && (
-                <InfoWindow position={trip.selectedLocation} onCloseClick={trip.handleCancel} pixelOffset={[0, -40]}>
-                  <AddPlaceForm 
-                    placeName={trip.placeName} setPlaceName={trip.setPlaceName} 
-                    placeAddress={trip.placeAddress} setPlaceAddress={trip.setPlaceAddress}
-                    placePhone={trip.placePhone} setPlacePhone={trip.setPlacePhone}
-                    placeHours={trip.placeHours} activeFieldsConfig={trip.activeFieldsConfig}
-                    dynamicFieldValues={trip.dynamicFieldValues} setDynamicFieldValues={trip.setDynamicFieldValues}
-                    onSubmit={(e, finalDynamicValues) => {
-                      const isSuccess = trip.handleSavePlace(e, finalDynamicValues);
-                      if (isSuccess) setIsSidebarOpen(true);
-                    }} 
-                    onCancel={trip.handleCancel} isEditing={!!trip.editingPlaceId} 
-                    googleMapsUrl={trip.selectedLocation.googleMapsUrl} placeColor={trip.placeColor}
-                    setPlaceColor={trip.setPlaceColor} isViewer={isThisPlaceReadonly}
-                  />
-                </InfoWindow>
-              )}
+              <PlaceFormPopup 
+                trip={trip} 
+                isReadonly={isThisPlaceReadonly} 
+                onSaveSuccess={() => setIsSidebarOpen(true)} 
+              />
+
             </MapCanvas>
           </div>
         </div>

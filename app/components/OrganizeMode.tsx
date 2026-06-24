@@ -1,12 +1,13 @@
 // components/OrganizeMode.tsx
 "use client";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react"; // 🧹 抽脂：useMemo 已退場
 import { Draggable } from "@fullcalendar/interaction";
 import { Place, CalendarEvent, Itinerary } from "./types"; 
 import MapCanvas from "./MapCanvas";
 import OrganizeHeader from "./organize/OrganizeHeader";
 import OrganizeSidebar from "./organize/OrganizeSidebar";
 import OrganizeCalendar from "./organize/OrganizeCalendar";
+import { useDailyPaths } from "../hooks/useDailyPaths"; // 🚀 1. 引入瘦身內核
 
 interface OrganizeModeProps {
   places: Place[];
@@ -41,12 +42,7 @@ export default function OrganizeMode({
   const externalEventsRef = useRef<HTMLDivElement>(null);
   const [showRouteMenu, setShowRouteMenu] = useState(false);
   
-  const activeItinerary =
-    itineraries.find((i) => i.id === activeItineraryId) || itineraries[0];
-
-  // =====================================================================
-  // 🚀 絕殺 1：安全提煉出當前行程的唯讀身分，一棍打暈 TS 海關！
-  // =====================================================================
+  const activeItinerary = itineraries.find((i) => i.id === activeItineraryId) || itineraries[0];
   const isViewer = (activeItinerary as any)?.access === "viewer";
 
   const [localEvents, setLocalEvents] = useState<CalendarEvent[]>(
@@ -54,11 +50,11 @@ export default function OrganizeMode({
   );
 
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+
+  {/* 💥 原本的神級導航彈 useEffect 經已拆遷，移交 OrganizeSidebar 內核接管 */}
+
   const [hoveredPlaceId, setHoveredPlaceId] = useState<string | null>(null);
-  const [panLocation, setPanLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+  const [panLocation, setPanLocation] = useState<{ lat: number; lng: number; } | null>(null);
 
   const [showList, setShowList] = useState(true);
   const [showMap, setShowMap] = useState(true);
@@ -68,7 +64,14 @@ export default function OrganizeMode({
   const [mapWidth, setMapWidth] = useState(600);
   const isResizingMap = useRef(false);
 
-  const [hiddenDays, setHiddenDays] = useState<Set<string>>(new Set());
+  // =====================================================================
+  // 🚀 2. 內核通電：一句 Custom Hook，收服原本 65 行的口水代碼！
+  // =====================================================================
+  const { dailyPaths, visiblePaths, hiddenDays, toggleDayVisibility } = useDailyPaths(
+    activeItinerary,
+    localEvents,
+    places
+  );
 
   const scheduledPlaceIds = new Set(
     localEvents.map((e) => e.extendedProps?.placeId),
@@ -85,67 +88,6 @@ export default function OrganizeMode({
     d.setDate(d.getDate() + 1);
     validRangeEnd = d.toISOString().split("T")[0];
   }
-
-  // 絕對日期錨點演算法
-  const dailyPaths = useMemo(() => {
-    if (!activeItinerary?.startDate) return [];
-
-    const tripDates: string[] = [];
-    let curr = new Date(activeItinerary.startDate);
-    const end = activeItinerary.endDate ? new Date(activeItinerary.endDate) : new Date(activeItinerary.startDate);
-
-    while (curr <= end) {
-      const yyyy = curr.getFullYear();
-      const mm = String(curr.getMonth() + 1).padStart(2, '0');
-      const dd = String(curr.getDate()).padStart(2, '0');
-      tripDates.push(`${yyyy}-${mm}-${dd}`);
-      curr.setDate(curr.getDate() + 1);
-    }
-
-    const eventsByDate: Record<string, CalendarEvent[]> = {};
-    
-    localEvents.forEach((ev) => {
-      if (!ev.start) return;
-      const d = new Date(ev.start);
-      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
-      eventsByDate[dateKey].push(ev);
-    });
-
-    const dayColors = [
-      "#2563eb", "#10b981", "#f97316", "#8b5cf6", "#ec4899", "#06b6d4",
-    ];
-
-    return tripDates.map((dateStr, idx) => {
-      const dayEvents = eventsByDate[dateStr] || [];
-      const sorted = dayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-      const points = sorted
-        .map((ev) => places.find((p) => p.id === ev.extendedProps?.placeId))
-        .filter((p): p is Place => !!p && typeof p.lat === 'number' && typeof p.lng === 'number')
-        .map((p) => ({ lat: p.lat, lng: p.lng }));
-
-      return {
-        day: dateStr, 
-        dayLabel: `Day ${idx + 1}`, 
-        dateShort: `${dateStr.substring(5)}`, 
-        strokeColor: dayColors[idx % dayColors.length],
-        points,
-      };
-    });
-  }, [activeItinerary, localEvents, places]);
-
-  const visiblePaths = useMemo(() => {
-    return dailyPaths.filter((path) => !hiddenDays.has(path.day));
-  }, [dailyPaths, hiddenDays]);
-
-  const toggleDayVisibility = (day: string) => {
-    setHiddenDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(day)) next.delete(day);
-      else next.add(day);
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -181,10 +123,6 @@ export default function OrganizeMode({
     };
   }, []);
 
-  // =====================================================================
-  // 🚀 絕殺 2：側邊欄起重機物理斷電！
-  // 如果 isViewer 為 true，直接禁止建立 Draggable 實例，卡片當場失去浮力！
-  // =====================================================================
   useEffect(() => {
     if (externalEventsRef.current && !isViewer) {
       const draggable = new Draggable(externalEventsRef.current, {
@@ -201,7 +139,6 @@ export default function OrganizeMode({
       return () => draggable.destroy();
     }
   }, [isViewer]);
-  // =====================================================================
 
   const updateLocalStateFromCalendar = () => {
     const calendarApi = calendarRef.current?.getApi();
@@ -220,8 +157,7 @@ export default function OrganizeMode({
     onUpdateLiveEvents(currentEvents); 
   };
 
-  const triggerCalendarResize = () =>
-    calendarRef.current?.getApi().updateSize();
+  const triggerCalendarResize = () => calendarRef.current?.getApi().updateSize();
 
   const handleFlyToPlace = (place: Place) => {
     setSelectedPlace(place);
@@ -254,10 +190,13 @@ export default function OrganizeMode({
       />
 
       <div className="flex flex-1 overflow-hidden">
+        {/* ===================================================================== */}
+        {/* 🚀 3. 完美閉環：地圖 Click -> 傳給老豆 -> 老豆再透過 Props 餵給 Sidebar 觸發破門 */}
+        {/* ===================================================================== */}
         <OrganizeSidebar 
           availablePlaces={places} 
           scheduledPlaceIds={scheduledPlaceIds} 
-          selectedPlace={selectedPlace} 
+          selectedPlace={selectedPlace} // 🎯 導彈引信接波點
           setSelectedPlace={setSelectedPlace} 
           hoveredPlaceId={hoveredPlaceId} 
           setHoveredPlaceId={setHoveredPlaceId} 
@@ -293,8 +232,6 @@ export default function OrganizeMode({
           hoveredPlaceId={hoveredPlaceId}
           onFlyToPlace={handleFlyToPlace}
           onEditPlace={onEditPlace} 
-          
-          // 🚀 絕殺 3：安全傳入 isViewer，紅線永不超生！
           isViewer={isViewer}
         />
 
@@ -369,7 +306,7 @@ export default function OrganizeMode({
               savedPlaces={places}
               selectedLocation={panLocation}
               onMapClick={() => setSelectedPlace(null)}
-              onMarkerClick={(place) => setSelectedPlace(place)}
+              onMarkerClick={(place) => setSelectedPlace(place)} // 🎯 發出點擊訊號
               hoveredPlaceId={hoveredPlaceId}
               onMarkerMouseEnter={(id) => setHoveredPlaceId(id)}
               onMarkerMouseLeave={() => setHoveredPlaceId(null)}

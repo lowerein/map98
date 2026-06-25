@@ -125,10 +125,7 @@ export default function MapCanvas({
         if (window.innerWidth >= 768) {
           // 💻 Desktop：地圖鏡頭向左拉 160px ＝ 地標本體「向右送 160px」，送到右邊白區！
           map.panBy(-160, 0);
-        } else {
-          // 📱 Mobile：地圖鏡頭向下壓 150px ＝ 地標本體「向上升 150px」，送上螢幕中端！
-          map.panBy(0, 150);
-        }
+        } 
       }, 120);
     }
   }, [map, selectedLocation]);
